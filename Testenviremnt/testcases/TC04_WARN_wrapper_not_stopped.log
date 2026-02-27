@@ -1,0 +1,42 @@
+STATUS | wrapper  | 2026/02/16 06:00:00 | --> Wrapper Started as Service
+STATUS | wrapper  | 2026/02/16 06:00:00 | Java Service Wrapper Community Edition 32-bit 3.3.9
+STATUS | wrapper  | 2026/02/16 06:00:00 |   Copyright (C) 1999-2009 Tanuki Software, Ltd.  All Rights Reserved.
+STATUS | wrapper  | 2026/02/16 06:00:00 |     http://wrapper.tanukisoftware.org
+STATUS | wrapper  | 2026/02/16 06:00:00 | 
+STATUS | wrapper  | 2026/02/16 06:00:01 | Launching a JVM...
+INFO   | jvm 1    | 2026/02/16 06:00:02 | WrapperManager: Initializing...
+INFO   | jvm 1    | 2026/02/16 06:00:02 | Jardirs
+INFO   | jvm 1    | 2026/02/16 06:00:20 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026/02/16 06:00:20 | (c) 2005-2026 by Lobster GmbH
+INFO   | jvm 1    | 2026/02/16 06:00:20 | IS Service Starter
+INFO   | jvm 1    | 2026/02/16 06:00:20 | Launching Lobster Integration Server, please wait
+INFO   | jvm 1    | 2026/02/16 06:00:20 | Hub Home: D:\Lobster_data\IS
+INFO   | jvm 1    | 2026/02/16 06:00:20 | Working Directory: D:\Lobster_data\IS\.
+INFO   | jvm 1    | 2026/02/16 06:00:21 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026/02/16 06:00:21 | (c) 1998-2026 by Lobster GmbH
+INFO   | jvm 1    | 2026/02/16 06:00:21 | IS/5.9.15_16122025140000 [Jetty 10.0.24]
+INFO   | jvm 1    | 2026/02/16 06:00:21 | Reading system configuration from 'file:/D:/Lobster_data/IS/etc/system.conf'
+INFO   | jvm 1    | 2026/02/16 06:00:21 | System is configured for product 1002260, features 84 and installation 2260t
+INFO   | jvm 1    | 2026/02/16 06:00:21 | LicenseManager 1.1.2_61652 trying to load license
+INFO   | jvm 1    | 2026/02/16 06:00:24 | System is licensed to *** Quehenberger (DW) ***
+INFO   | jvm 1    | 2026/02/16 06:00:24 | Number of cores available: 2
+INFO   | jvm 1    | 2026/02/16 06:00:25 | Starting configured services, please stand by... 
+INFO   | jvm 1    | 2026/02/16 06:05:12 | Shutdown hook of Jcapi added into virtual machine
+INFO   | jvm 1    | 2026/02/16 06:05:19 | Mon Feb 16 06:05:19 CET 2026, IS services are up and running
+INFO   | jvm 1    | 2026/02/16 06:05:19 | Shutdown hook added into virtual machine
+INFO   | jvm 1    | 2026/02/16 06:05:19 | Starting HTTP-servers... 
+INFO   | jvm 1    | 2026/02/16 06:05:20 | Starting HTTP-server 'Administrative Server'
+INFO   | jvm 1    | 2026/02/16 06:05:38 | Started HTTP-server 'Administrative Server'
+INFO   | jvm 1    | 2026/02/16 06:05:38 | Starting HTTP-server 'Main Server'
+INFO   | jvm 1    | 2026/02/16 06:07:05 | Started HTTP-server 'Main Server'
+INFO   | jvm 1    | 2026/02/16 06:07:05 | Http servers started
+INFO   | jvm 1    | 2026/02/16 06:07:05 | Integration Server (IS) started in 479416 ms, system is ready...
+INFO   | jvm 1    | 2026/02/16 06:07:05 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026/02/16 12:00:00 | FileLogManager(internal, without active stream 0): 00:00:00 NORMAL   Rollover-notification for listener 'transportmanagerlog'
+INFO   | jvm 1    | 2026/02/16 12:00:00 | FileLogManager(as2log, without active stream 0): 00:00:00 NORMAL   AS2AuthServicePartnerManager: Try to delete received/sent messages/MDNs that are older than 7 days
+INFO   | jvm 1    | 2026/02/16 12:00:00 | FileLogManager(as2log, without active stream 0): 00:00:00 NORMAL   AS2AuthServicePartnerManager: 0 files to be deleted
+INFO   | jvm 1    | 2026/02/16 12:00:00 | FileLogManager(as2log, without active stream 0): 00:00:00 NORMAL   AS2AuthServicePartnerManager: 0 files and 0 subdirectories deleted
+INFO   | jvm 1    | 2026/02/16 12:10:00 | 	at org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:131)
+INFO   | jvm 1    | 2026/02/16 12:10:00 | 	at org.eclipse.jetty.security.SecurityHandler.handle(SecurityHandler.java:598)
+INFO   | jvm 1    | 2026/02/16 12:10:00 | 	at org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java:501)
+INFO   | jvm 1    | 2026/02/16 12:10:00 | 	at java.base/java.lang.Thread.run(Thread.java:829)

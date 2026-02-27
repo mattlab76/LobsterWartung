@@ -1,0 +1,30 @@
+INFO   | jvm 1    | 2026/02/15 18:47:21 | Integration Server (IS) started in 479416 ms, system is ready...
+INFO   | jvm 1    | 2026/02/15 18:47:21 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026/02/15 19:55:00 | *** Running in 'Emergency Halt' mode by user hama11...
+INFO   | jvm 1    | 2026/02/15 19:56:30 | *** 'Emergency Halt' mode released by user hama11
+INFO   | jvm 1    | 2026/02/15 19:58:55 | Stopping CertificateExchangeService ... done
+INFO   | jvm 1    | 2026/02/15 19:58:55 | Stopping SshService ... done
+INFO   | jvm 1    | 2026/02/15 19:58:55 | Stopping SmtpService ... done
+INFO   | jvm 1    | 2026/02/15 19:58:55 | Stopping SapConnectionService ... 
+INFO   | jvm 1    | 2026/02/15 19:58:56 | done
+INFO   | jvm 1    | 2026/02/15 19:58:56 | Stopping AS2Service ... done
+INFO   | jvm 1    | 2026/02/15 19:58:56 | Stopping OftpService ... done
+INFO   | jvm 1    | 2026/02/15 19:58:56 | Stopping FtpService ... done
+INFO   | jvm 1    | 2026/02/15 19:58:56 | Stopping StartupService ... 
+INFO   | jvm 1    | 2026/02/15 19:59:01 |  *** Force stop file found or force stop signal received - skipping wait for running jobs *** - 
+INFO   | jvm 1    | 2026/02/15 19:59:04 | *** Lobster_data: waiting another 10s to finish log entries due to 'force stop' or 'emergency halt' mode...
+INFO   | jvm 1    | 2026/02/15 19:59:10 | done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping AdminService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping TimeService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping InterchangeService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping CronJobService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping CommunicationLogService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping AuthenticationService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:10 | Stopping StorageService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:11 | Stopping DatabaseService ... done
+INFO   | jvm 1    | 2026/02/15 19:59:11 | Stopping LogService ... 
+INFO   | jvm 1    | 2026/02/15 19:59:11 | FileLogManager(internal, without active stream 0): 19:59:11 NORMAL   SYSTEM:LOG:LOGSERVICE:FILELOGMANAGER[transportmanagerlog] stopped
+INFO   | jvm 1    | 2026/02/15 19:59:12 | done
+INFO   | jvm 1    | 2026/02/15 19:59:24 | Mon Feb 15 19:59:24 CET 2026, server process STOPPED
+INFO   | jvm 1    | 2026/02/15 19:59:24 | Temp. directoy cleaned up
+STATUS | wrapper  | 2026/02/15 19:59:25 | <-- Wrapper Stopped

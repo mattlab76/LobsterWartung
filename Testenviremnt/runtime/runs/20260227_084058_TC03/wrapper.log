@@ -1,0 +1,58 @@
+﻿INFO   | jvm 1    | 2026.02.27 08:33:39 | Integration Server (IS) started in 479416 ms, system is ready...
+INFO   | jvm 1    | 2026.02.27 08:33:39 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026.02.27 08:36:47 | *** Running in 'Emergency Halt' mode by user hama11...
+INFO   | jvm 1    | 2026.02.27 08:38:28 | *** 'Emergency Halt' mode released by user hama11
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping CertificateExchangeService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping SshService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping SmtpService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping SapConnectionService ... 
+INFO   | jvm 1    | 2026.02.27 08:40:06 | done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping AS2Service ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping OftpService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping FtpService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:06 | Stopping StartupService ... 
+INFO   | jvm 1    | 2026.02.27 08:40:11 |  *** Force stop file found or force stop signal received - skipping wait for running jobs *** - 
+INFO   | jvm 1    | 2026.02.27 08:40:14 | *** Lobster_data: waiting another 10s to finish log entries due to 'force stop' or 'emergency halt' mode...
+INFO   | jvm 1    | 2026.02.27 08:40:24 | done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping AdminService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping TimeService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping InterchangeService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping CronJobService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping CommunicationLogService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping AuthenticationService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping StorageService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping DatabaseService ... done
+INFO   | jvm 1    | 2026.02.27 08:40:25 | Stopping LogService ... 
+INFO   | jvm 1    | 2026.02.27 08:40:25 | FileLogManager(internal, without active stream 0): 12:01:58 NORMAL   SYSTEM:LOG:LOGSERVICE:FILELOGMANAGER[kafkalog] stopped
+INFO   | jvm 1    | 2026.02.27 08:40:25 | FileLogManager(internal, without active stream 0): 12:01:58 NORMAL   SYSTEM:LOG:LOGSERVICE:FILELOGMANAGER[transportmanagerlog] stopped
+INFO   | jvm 1    | 2026.02.27 08:40:26 | done
+INFO   | jvm 1    | 2026.02.27 08:40:27 | Mon Feb 16 12:02:00 CET 2026, server process STOPPED
+INFO   | jvm 1    | 2026.02.27 08:40:27 | Temp. directoy cleaned up
+STATUS | wrapper  | 2026.02.27 08:40:28 | <-- Wrapper Stopped
+STATUS | wrapper  | 2026.02.27 08:43:08 | --> Wrapper Started as Service
+STATUS | wrapper  | 2026.02.27 08:43:08 | Java Service Wrapper Community Edition 32-bit 3.3.9
+STATUS | wrapper  | 2026.02.27 08:43:08 |   Copyright (C) 1999-2009 Tanuki Software, Ltd.  All Rights Reserved.
+STATUS | wrapper  | 2026.02.27 08:43:08 |     http://wrapper.tanukisoftware.org
+STATUS | wrapper  | 2026.02.27 08:43:08 | 
+STATUS | wrapper  | 2026.02.27 08:43:09 | Launching a JVM...
+INFO   | jvm 1    | 2026.02.27 08:43:10 | WrapperManager: Initializing...
+INFO   | jvm 1    | 2026.02.27 08:43:10 | Jardirs
+INFO   | jvm 1    | 2026.02.27 08:43:32 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026.02.27 08:43:32 | (c) 2005-2026 by Lobster GmbH
+INFO   | jvm 1    | 2026.02.27 08:43:32 | IS Service Starter
+INFO   | jvm 1    | 2026.02.27 08:43:32 | Launching Lobster Integration Server, please wait
+INFO   | jvm 1    | 2026.02.27 08:43:32 | Hub Home: D:\Lobster_data\IS
+INFO   | jvm 1    | 2026.02.27 08:43:32 | Working Directory: D:\Lobster_data\IS\.
+INFO   | jvm 1    | 2026.02.27 08:43:33 | --------------------------------------------------------------------------
+INFO   | jvm 1    | 2026.02.27 08:43:33 | (c) 1998-2026 by Lobster GmbH
+INFO   | jvm 1    | 2026.02.27 08:43:33 | IS/5.9.15_16122025140000 [Jetty 10.0.24]
+INFO   | jvm 1    | 2026.02.27 08:43:33 | Reading system configuration from 'file:/D:/Lobster_data/IS/etc/system.conf'
+INFO   | jvm 1    | 2026.02.27 08:43:33 | System is configured for product 1002260, features 84 and installation 2260t
+INFO   | jvm 1    | 2026.02.27 08:43:33 | LicenseManager 1.1.2_61652 trying to load license
+INFO   | jvm 1    | 2026.02.27 08:43:36 | System is licensed to *** Quehenberger (DW) ***
+INFO   | jvm 1    | 2026.02.27 08:43:36 | Number of cores available: 2
+INFO   | jvm 1    | 2026.02.27 08:43:37 | Starting configured services, please stand by... 
+INFO   | jvm 1    | 2026.02.27 08:49:46 | Mon Feb 16 12:11:19 CET 2026, IS services are up and running
+INFO   | jvm 1    | 2026.02.27 08:51:32 | Integration Server (IS) started in 479416 ms, system is ready...
+INFO   | jvm 1    | 2026.02.27 08:51:32 | --------------------------------------------------------------------------
+
