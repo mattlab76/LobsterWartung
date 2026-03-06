@@ -366,6 +366,67 @@
   }
   #toast.show { opacity: 1; }
 
+  /* ---- API Status Badge ---- */
+  .api-status-badge {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 13px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.12);
+    white-space: nowrap;
+    cursor: default;
+  }
+  .api-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #718096;
+    flex-shrink: 0;
+    transition: background .4s;
+  }
+  .api-dot.checking { background: #f6c90e; animation: apiBlink 1s ease-in-out infinite; }
+  .api-dot.online   { background: #48bb78; }
+  .api-dot.offline  { background: #fc8181; }
+  @keyframes apiBlink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ---- Auto-Panel (Schritte 3-6) ---- */
+  .auto-panel {
+    background: #f0faf4;
+    border: 1px solid #68d391;
+    border-radius: 7px;
+    padding: 13px 16px;
+    margin-bottom: 16px;
+  }
+  .auto-panel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .auto-panel-title { font-weight: 700; font-size: 13px; color: #276749; }
+  .run-log {
+    margin-top: 12px;
+    background: #1a202c;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .log-ok   { color: #68d391; }
+  .log-err  { color: #fc8181; }
+  .log-warn { color: #f6ad55; }
+  .log-info { color: #90cdf4; }
+  .btn-spin { display: inline-block; animation: spin .9s linear infinite; }
+  @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
   /* ---- Footer ---- */
   .app-footer {
     text-align: center; padding: 16px;
@@ -395,6 +456,10 @@
     <div class="logo">Lobster Scheduler Manager</div>
   </div>
   <div class="sub" style="margin-left:4px;">Windows Task Scheduler &ndash; Remote Verwaltung</div>
+  <div class="api-status-badge" id="api-badge" title="Lokale API für Auto-Modus. Start: powershell -File Start-SchedulerManagerAPI.ps1">
+    <span class="api-dot checking" id="api-dot"></span>
+    <span id="api-label">API wird geprüft...</span>
+  </div>
 </header>
 
 <!-- ===== NAV TABS ===== -->
@@ -500,6 +565,12 @@
             <span class="form-hint">Ordner auf dem Backend-Host</span>
           </div>
 
+          <div class="form-group">
+            <label>Wrapper Log Pfad am Remote Host <span class="req">*</span></label>
+            <input type="text" id="f-wrapperLogPath" placeholder="z.B. D:\lobster\logs\wrapper.log" autocomplete="off" />
+            <span class="form-hint">Vollständiger Pfad zur wrapper.log auf dem Remote-Host</span>
+          </div>
+
         </div>
 
         <div class="section-label">Ermitteltes Skript</div>
@@ -552,7 +623,18 @@
           <span class="alert-icon">&#8505;&#65039;</span>
           <div>F&uuml;hre den folgenden PowerShell-Befehl aus, um zu pr&uuml;fen ob das ben&ouml;tigte Skript auf dem Remote-Host vorhanden ist. Danach Status setzen.</div>
         </div>
-        <div class="code-wrap">
+        <!-- Auto-Panel Schritt 3 -->
+        <div id="auto-panel-3" class="auto-panel" style="display:none;">
+          <div class="auto-panel-row">
+            <span class="api-dot online" style="flex-shrink:0;"></span>
+            <span class="auto-panel-title">Auto-Modus aktiv</span>
+            <button class="btn btn-primary btn-sm" id="auto-btn-3" onclick="autoRun(3)">&#9654; Jetzt ausf&uuml;hren</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(3)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
+          </div>
+          <div id="auto-log-3" class="run-log" style="display:none;"></div>
+        </div>
+
+        <div class="code-wrap" id="manual-wrap-3">
           <div class="code-header">
             <span class="code-label">PowerShell &ndash; Skript pr&uuml;fen</span>
             <div class="code-btns">
@@ -561,7 +643,7 @@
             </div>
           </div>
           <div class="code-block" id="code-check-script"></div>
-        </div>
+        </div><!-- /manual-wrap-3 -->
         <div class="step-check-row">
           <span class="step-check-label">Status nach Ausf&uuml;hrung:</span>
           <button class="btn btn-success btn-sm" onclick="markDone(3)">&#10003; Skript gefunden</button>
@@ -587,7 +669,19 @@
           <span class="alert-icon">&#9888;&#65039;</span>
           <div><strong>Sicherheitshinweis:</strong> Das Passwort ist im generierten Skript enthalten. Bitte das Konsolenfenster danach schlie&szlig;en und die heruntergeladene .ps1-Datei nach der Verwendung l&ouml;schen.</div>
         </div>
-        <div class="code-wrap">
+
+        <!-- Auto-Panel Schritt 4 -->
+        <div id="auto-panel-4" class="auto-panel" style="display:none;">
+          <div class="auto-panel-row">
+            <span class="api-dot online" style="flex-shrink:0;"></span>
+            <span class="auto-panel-title">Auto-Modus aktiv &ndash; Passwort wird nur im Speicher verwendet, nicht in eine Datei geschrieben</span>
+            <button class="btn btn-primary btn-sm" id="auto-btn-4" onclick="autoRun(4)">&#9654; Jetzt ausf&uuml;hren</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(4)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
+          </div>
+          <div id="auto-log-4" class="run-log" style="display:none;"></div>
+        </div>
+
+        <div class="code-wrap" id="manual-wrap-4">
           <div class="code-header">
             <span class="code-label">PowerShell &ndash; Scheduled Task erstellen</span>
             <div class="code-btns">
@@ -596,7 +690,7 @@
             </div>
           </div>
           <div class="code-block" id="code-create-task"></div>
-        </div>
+        </div><!-- /manual-wrap-4 -->
         <div class="step-check-row">
           <span class="step-check-label">Status nach Ausf&uuml;hrung:</span>
           <button class="btn btn-success btn-sm" onclick="markDone(4)">&#10003; Eintrag erstellt</button>
@@ -622,7 +716,19 @@
           <span class="alert-icon">&#8505;&#65039;</span>
           <div>Pr&uuml;fe, ob der Scheduled Task am Remote-Host erfolgreich angelegt wurde.</div>
         </div>
-        <div class="code-wrap">
+
+        <!-- Auto-Panel Schritt 5 -->
+        <div id="auto-panel-5" class="auto-panel" style="display:none;">
+          <div class="auto-panel-row">
+            <span class="api-dot online" style="flex-shrink:0;"></span>
+            <span class="auto-panel-title">Auto-Modus aktiv</span>
+            <button class="btn btn-primary btn-sm" id="auto-btn-5" onclick="autoRun(5)">&#9654; Jetzt ausf&uuml;hren</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(5)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
+          </div>
+          <div id="auto-log-5" class="run-log" style="display:none;"></div>
+        </div>
+
+        <div class="code-wrap" id="manual-wrap-5">
           <div class="code-header">
             <span class="code-label">PowerShell &ndash; Scheduled Task pr&uuml;fen</span>
             <div class="code-btns">
@@ -631,7 +737,7 @@
             </div>
           </div>
           <div class="code-block" id="code-verify-task"></div>
-        </div>
+        </div><!-- /manual-wrap-5 -->
         <div class="step-check-row">
           <span class="step-check-label">Status:</span>
           <button class="btn btn-success btn-sm" onclick="markDone(5)">&#10003; Eintrag best&auml;tigt</button>
@@ -666,7 +772,18 @@
             <textarea id="f-mailBody" rows="9" style="resize:vertical;" oninput="updateMailCode()"></textarea>
           </div>
         </div>
-        <div class="code-wrap">
+        <!-- Auto-Panel Schritt 6 -->
+        <div id="auto-panel-6" class="auto-panel" style="display:none;">
+          <div class="auto-panel-row">
+            <span class="api-dot online" style="flex-shrink:0;"></span>
+            <span class="auto-panel-title">Auto-Modus aktiv</span>
+            <button class="btn btn-primary btn-sm" id="auto-btn-6" onclick="autoRun(6)">&#9993; Mail automatisch senden</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(6)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
+          </div>
+          <div id="auto-log-6" class="run-log" style="display:none;"></div>
+        </div>
+
+        <div class="code-wrap" id="manual-wrap-6">
           <div class="code-header">
             <span class="code-label">PowerShell &ndash; Mail senden</span>
             <div class="code-btns">
@@ -675,7 +792,7 @@
             </div>
           </div>
           <div class="code-block" id="code-send-mail"></div>
-        </div>
+        </div><!-- /manual-wrap-6 -->
         <div class="step-check-row">
           <span class="step-check-label">Abschlie&szlig;en:</span>
           <button class="btn btn-success  btn-sm" onclick="finishWorkflow(true)">&#10003; Mail versendet &amp; Abschlie&szlig;en</button>
@@ -790,6 +907,10 @@
             <label>Standard PS-Skript Pfad</label>
             <input type="text" id="s-defaultScriptPath" placeholder="D:\Scripts\LobsterMaintenance" />
           </div>
+          <div class="form-group">
+            <label>Standard Wrapper Log Pfad</label>
+            <input type="text" id="s-defaultWrapperLogPath" placeholder="D:\lobster\logs\wrapper.log" />
+          </div>
         </div>
         <div class="actions" style="margin-top:12px;">
           <button class="btn btn-primary btn-sm" onclick="saveDefaultSettings()">&#128190; Speichern</button>
@@ -887,9 +1008,10 @@ function defaultSettings() {
     schedulerLocations: ['AQG'],
     smtpServer:         'smtp.cust.bmlc.local',
     mailFrom:           'noreply@quehenberger.com',
-    mailTo:             '',
-    defaultUser:        '',
-    defaultScriptPath:  '',
+    mailTo:                '',
+    defaultUser:           '',
+    defaultScriptPath:     '',
+    defaultWrapperLogPath: '',
   };
 }
 
@@ -1012,6 +1134,7 @@ function getFormValues() {
     startTime:         document.getElementById('f-startTime').value,
     schedulerLocation: document.getElementById('f-schedulerLocation').value,
     scriptPath:        document.getElementById('f-scriptPath').value.trim(),
+    wrapperLogPath:    document.getElementById('f-wrapperLogPath').value.trim(),
     scriptName:        document.getElementById('f-detectedScript').value.trim(),
     taskName:          document.getElementById('f-taskName').value.trim(),
   };
@@ -1075,6 +1198,7 @@ function validateForm() {
   if (!f.startTime)         errors.push('Startzeitpunkt fehlt');
   if (!f.schedulerLocation) errors.push('Scheduler Location fehlt');
   if (!f.scriptPath)        errors.push('PS-Skript Pfad fehlt');
+  if (!f.wrapperLogPath)    errors.push('Wrapper Log Pfad fehlt');
   if (!f.scriptName || f.scriptName.startsWith('(')) errors.push('Kein gültiges PS-Skript ermittelbar');
   return errors;
 }
@@ -1096,8 +1220,9 @@ function resetForm() {
   });
   document.getElementById('f-remotePassword').value = '';
   const s = loadSettings();
-  document.getElementById('f-remoteUser').value  = s.defaultUser || '';
-  document.getElementById('f-scriptPath').value  = s.defaultScriptPath || '';
+  document.getElementById('f-remoteUser').value     = s.defaultUser || '';
+  document.getElementById('f-scriptPath').value     = s.defaultScriptPath || '';
+  document.getElementById('f-wrapperLogPath').value = s.defaultWrapperLogPath || '';
   document.getElementById('f-detectedScript').style.color = '';
   document.getElementById('script-hint').textContent = '';
   onInstanceTypeChange();
@@ -1142,6 +1267,7 @@ function renderSummary() {
     ['Scheduler Location',        f.schedulerLocation],
     ['Scheduler Task Name',       f.taskName],
     ['PS-Skript Pfad (Remote)',   f.scriptPath],
+    ['Wrapper Log Pfad (Remote)', f.wrapperLogPath],
     ['PS-Skript Name',            f.scriptName],
   ];
   document.getElementById('summary-table').innerHTML = rows.map(([k, v]) =>
@@ -1176,30 +1302,43 @@ function renderCheckScriptCode() {
   const code =
 `# ============================================================
 # Lobster Scheduler Manager - Schritt 3: PS-Skript prüfen
-# Ziel-Host : ${host}
-# Skript    : ${f.scriptPath}\\${f.scriptName}
+# Ziel-Host      : ${host}
+# Skript         : ${f.scriptPath}\\${f.scriptName}
+# Wrapper Log    : ${f.wrapperLogPath}
 # ============================================================
 $ErrorActionPreference = 'Stop'
 
 ${psCredBlock(f)}
 
-$scriptPath = '${f.scriptPath}'
-$scriptName = '${f.scriptName}'
+$scriptPath    = '${f.scriptPath}'
+$scriptName    = '${f.scriptName}'
+$wrapperLogPath = '${f.wrapperLogPath}'
 
-$exists = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock {
-    param($p, $s)
+$result = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock {
+    param($p, $s, $logPath)
     $fullPath = Join-Path $p $s
-    Write-Host "Prüfe: $fullPath"
-    Test-Path -LiteralPath $fullPath
-} -ArgumentList $scriptPath, $scriptName
+    Write-Host "Prüfe Skript  : $fullPath"
+    Write-Host "Prüfe Log     : $logPath"
+    [PSCustomObject]@{
+        ScriptExists = Test-Path -LiteralPath $fullPath
+        LogExists    = Test-Path -LiteralPath $logPath
+    }
+} -ArgumentList $scriptPath, $scriptName, $wrapperLogPath
 
-if ($exists) {
+if ($result.ScriptExists) {
     Write-Host "[OK] Skript gefunden: $scriptPath\\$scriptName" -ForegroundColor Green
 } else {
     Write-Host "[FEHLER] Skript NICHT gefunden: $scriptPath\\$scriptName" -ForegroundColor Red
     exit 1
+}
+
+if ($result.LogExists) {
+    Write-Host "[OK] Wrapper Log gefunden: $wrapperLogPath" -ForegroundColor Green
+} else {
+    Write-Host "[WARNUNG] Wrapper Log NICHT gefunden: $wrapperLogPath" -ForegroundColor Yellow
 }`;
   document.getElementById('code-check-script').textContent = code;
+  updateAutoPanel(3);
 }
 
 function renderCreateTaskCode() {
@@ -1258,6 +1397,7 @@ $result = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock 
 
 Write-Host "Task-Status: $result"`;
   document.getElementById('code-create-task').textContent = code;
+  updateAutoPanel(4);
 }
 
 function renderVerifyTaskCode() {
@@ -1294,6 +1434,7 @@ if ($result) {
     exit 1
 }`;
   document.getElementById('code-verify-task').textContent = code;
+  updateAutoPanel(5);
 }
 
 function renderMailStep() {
@@ -1322,10 +1463,12 @@ der folgende Scheduled Task wurde erfolgreich am Remote-Host gesetzt:
   Scheduler Pfad  : \\${f.schedulerLocation}\\
   Startzeitpunkt  : ${f.startTime.replace('T', ' ')}
   PS-Skript       : ${f.scriptPath}\\${f.scriptName}
+  Wrapper Log     : ${f.wrapperLogPath}
 
 Mit freundlichen Grüßen`;
   }
   updateMailCode();
+  updateAutoPanel(6);
 }
 
 function updateMailCode() {
@@ -1486,8 +1629,9 @@ function renderSettingsTab() {
   document.getElementById('s-smtpServer').value       = s.smtpServer || '';
   document.getElementById('s-mailFrom').value         = s.mailFrom   || '';
   document.getElementById('s-mailTo').value           = s.mailTo     || '';
-  document.getElementById('s-defaultUser').value      = s.defaultUser       || '';
-  document.getElementById('s-defaultScriptPath').value = s.defaultScriptPath || '';
+  document.getElementById('s-defaultUser').value           = s.defaultUser           || '';
+  document.getElementById('s-defaultScriptPath').value     = s.defaultScriptPath     || '';
+  document.getElementById('s-defaultWrapperLogPath').value = s.defaultWrapperLogPath || '';
 }
 
 function renderTagList(containerId, items, listKey) {
@@ -1534,8 +1678,9 @@ function saveMailSettings() {
 
 function saveDefaultSettings() {
   const s          = loadSettings();
-  s.defaultUser       = document.getElementById('s-defaultUser').value.trim();
-  s.defaultScriptPath = document.getElementById('s-defaultScriptPath').value.trim();
+  s.defaultUser           = document.getElementById('s-defaultUser').value.trim();
+  s.defaultScriptPath     = document.getElementById('s-defaultScriptPath').value.trim();
+  s.defaultWrapperLogPath = document.getElementById('s-defaultWrapperLogPath').value.trim();
   saveSettings(s);
   showToast('Standard-Werte gespeichert');
 }
@@ -1627,8 +1772,9 @@ function setDefaultStartTime() {
 
 function init() {
   const s = loadSettings();
-  document.getElementById('f-remoteUser').value  = s.defaultUser       || '';
-  document.getElementById('f-scriptPath').value  = s.defaultScriptPath || '';
+  document.getElementById('f-remoteUser').value     = s.defaultUser           || '';
+  document.getElementById('f-scriptPath').value     = s.defaultScriptPath     || '';
+  document.getElementById('f-wrapperLogPath').value = s.defaultWrapperLogPath || '';
   refreshDropdowns();
   setDefaultStartTime();
   onInstanceTypeChange();
@@ -1636,9 +1782,244 @@ function init() {
 
   // Update task name when start time changes
   document.getElementById('f-startTime').addEventListener('change', updateDetectedScript);
+  checkApiAvailable();
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ============================================================
+// AUTO-MODUS (lokale PS-API)
+// ============================================================
+const API_URL = 'http://localhost:8765';
+let apiAvailable = false;
+
+async function checkApiAvailable() {
+  const dot = document.getElementById('api-dot');
+  const lbl = document.getElementById('api-label');
+  dot.className = 'api-dot checking';
+  lbl.textContent = 'API wird geprüft...';
+  try {
+    const res = await fetch(API_URL + '/ping',
+      { signal: AbortSignal.timeout(2000) });
+    const data = await res.json();
+    if (data.ok) {
+      apiAvailable = true;
+      dot.className = 'api-dot online';
+      lbl.textContent = 'API Online – Auto-Modus aktiv';
+    } else {
+      throw new Error('ping failed');
+    }
+  } catch {
+    apiAvailable = false;
+    dot.className = 'api-dot offline';
+    lbl.textContent = 'API Offline – manueller Modus';
+  }
+}
+
+// Zeigt/verbirgt Auto-Panel und blendet Manual-Script entsprechend aus
+function updateAutoPanel(stepNum) {
+  const panel    = document.getElementById('auto-panel-' + stepNum);
+  const manWrap  = document.getElementById('manual-wrap-' + stepNum);
+  if (!panel) return;
+  if (apiAvailable) {
+    panel.style.display   = 'block';
+    if (manWrap) manWrap.style.display = 'none';
+  } else {
+    panel.style.display   = 'none';
+    if (manWrap) manWrap.style.display = '';
+  }
+}
+
+// Manuelles Script ein-/ausblenden (toggle im Auto-Modus)
+function toggleManualScript(stepNum) {
+  const manWrap = document.getElementById('manual-wrap-' + stepNum);
+  if (!manWrap) return;
+  manWrap.style.display = manWrap.style.display === 'none' ? '' : 'none';
+}
+
+// Hilfsfunktion: Log-Zeile in run-log einfügen
+function logLine(logEl, text, cls) {
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text;
+  logEl.appendChild(span);
+  logEl.appendChild(document.createTextNode('\n'));
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Generische Auto-Run-Funktion, delegiert an spezifische Implementierung
+async function autoRun(stepNum) {
+  const btn = document.getElementById('auto-btn-' + stepNum);
+  const log = document.getElementById('auto-log-' + stepNum);
+  log.innerHTML = '';
+  log.style.display = 'block';
+  btn.disabled = true;
+  const origLabel = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-spin">&#8635;</span> Läuft...';
+
+  try {
+    if      (stepNum === 3) await autoRunStep3(log);
+    else if (stepNum === 4) await autoRunStep4(log);
+    else if (stepNum === 5) await autoRunStep5(log);
+    else if (stepNum === 6) await autoRunStep6(log);
+  } catch (e) {
+    logLine(log, '[FEHLER] Verbindung zur API fehlgeschlagen: ' + e.message, 'log-err');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = origLabel;
+}
+
+// --- Schritt 3: Skript + Log-Pfad prüfen ---
+async function autoRunStep3(log) {
+  const f    = currentForm;
+  const host = getTargetHost(f);
+  logLine(log, 'Verbinde mit ' + host + ' ...', 'log-info');
+
+  const res = await fetch(API_URL + '/check-script', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      host:           host,
+      user:           f.remoteUser,
+      password:       f.remotePassword,
+      scriptPath:     f.scriptPath,
+      scriptName:     f.scriptName,
+      wrapperLogPath: f.wrapperLogPath,
+    })
+  });
+  const data = await res.json();
+
+  if (data.scriptExists) {
+    logLine(log, '[OK] Skript gefunden: ' + data.scriptPath, 'log-ok');
+  } else {
+    logLine(log, '[FEHLER] Skript NICHT gefunden: ' + data.scriptPath, 'log-err');
+  }
+  if (data.logExists) {
+    logLine(log, '[OK] Wrapper Log gefunden: ' + data.logPath, 'log-ok');
+  } else {
+    logLine(log, '[WARNUNG] Wrapper Log nicht gefunden: ' + data.logPath, 'log-warn');
+  }
+
+  if (data.scriptExists) {
+    markDone(3);
+    logLine(log, '→ Schritt 3 abgeschlossen. "Weiter" ist jetzt aktiv.', 'log-info');
+  } else {
+    markError(3);
+    logLine(log, '→ Skript fehlt – bitte prüfen.', 'log-err');
+  }
+}
+
+// --- Schritt 4: Scheduled Task anlegen ---
+async function autoRunStep4(log) {
+  const f        = currentForm;
+  const host     = getTargetHost(f);
+  const taskPath = '\\' + f.schedulerLocation + '\\';
+  const scriptFull = f.scriptPath.replace(/\//g, '\\') + '\\' + f.scriptName;
+  const startFmt   = f.startTime.replace('T', ' ') + ':00';
+
+  logLine(log, 'Lege Scheduled Task an auf ' + host + ' ...', 'log-info');
+  logLine(log, 'Task: ' + taskPath + f.taskName, 'log-info');
+  logLine(log, 'Start: ' + startFmt, 'log-info');
+
+  const res = await fetch(API_URL + '/create-task', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      host:       host,
+      user:       f.remoteUser,
+      password:   f.remotePassword,
+      taskName:   f.taskName,
+      taskPath:   taskPath,
+      scriptFull: scriptFull,
+      startTime:  startFmt,
+    })
+  });
+  const data = await res.json();
+
+  if (data.ok) {
+    logLine(log, '[OK] Task registriert: ' + data.taskPath + data.taskName, 'log-ok');
+    logLine(log, '     Status: ' + data.state, 'log-ok');
+    markDone(4);
+    logLine(log, '→ Schritt 4 abgeschlossen.', 'log-info');
+  } else {
+    logLine(log, '[FEHLER] ' + data.message, 'log-err');
+    markError(4);
+  }
+}
+
+// --- Schritt 5: Task prüfen ---
+async function autoRunStep5(log) {
+  const f        = currentForm;
+  const host     = getTargetHost(f);
+  const taskPath = '\\' + f.schedulerLocation + '\\';
+
+  logLine(log, 'Prüfe Task auf ' + host + ' ...', 'log-info');
+
+  const res = await fetch(API_URL + '/verify-task', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      host:     host,
+      user:     f.remoteUser,
+      password: f.remotePassword,
+      taskName: f.taskName,
+      taskPath: taskPath,
+    })
+  });
+  const data = await res.json();
+
+  if (data.ok) {
+    logLine(log, '[OK] Task gefunden: ' + data.taskPath + data.taskName, 'log-ok');
+    logLine(log, '     Status      : ' + data.state,       'log-ok');
+    logLine(log, '     Nächster Lauf: ' + data.nextRunTime, 'log-ok');
+    markDone(5);
+    logLine(log, '→ Schritt 5 abgeschlossen.', 'log-info');
+  } else {
+    logLine(log, '[FEHLER] ' + data.message, 'log-err');
+    markError(5);
+  }
+}
+
+// --- Schritt 6: Mail senden ---
+async function autoRunStep6(log) {
+  const s       = loadSettings();
+  const to      = document.getElementById('f-mailTo').value;
+  const subject = document.getElementById('f-mailSubject').value;
+  const body    = document.getElementById('f-mailBody').value;
+
+  if (!to) {
+    logLine(log, '[FEHLER] Kein Empfänger angegeben.', 'log-err');
+    return;
+  }
+  if (!s.smtpServer) {
+    logLine(log, '[FEHLER] Kein SMTP-Server in den Einstellungen konfiguriert.', 'log-err');
+    return;
+  }
+
+  logLine(log, 'Sende Mail an ' + to + ' ...', 'log-info');
+
+  const res = await fetch(API_URL + '/send-mail', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      smtpServer: s.smtpServer,
+      from:       s.mailFrom,
+      to:         to,
+      subject:    subject,
+      body:       body,
+    })
+  });
+  const data = await res.json();
+
+  if (data.ok) {
+    logLine(log, '[OK] ' + data.message, 'log-ok');
+    // Auto-Abschluss nach 1,5 Sek
+    setTimeout(() => finishWorkflow(true), 1500);
+  } else {
+    logLine(log, '[FEHLER] ' + data.message, 'log-err');
+  }
+}
 </script>
 </body>
 </html>
