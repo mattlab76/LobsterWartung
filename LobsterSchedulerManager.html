@@ -936,6 +936,20 @@
       </div>
     </div>
 
+    <!-- Backup / Import — spans full width -->
+    <div class="card" style="grid-column:1/-1;">
+      <div class="card-header"><div class="card-header-left"><span>&#128229;</span><h3>Backup &amp; Import</h3></div></div>
+      <div class="card-body">
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+          Alle Einstellungen und die Historie k&ouml;nnen als JSON-Datei gesichert und auf einem anderen Rechner oder nach einem Browser-Reset wiederhergestellt werden.
+        </p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="exportSettings()">&#11015; Backup herunterladen</button>
+          <button class="btn btn-secondary" onclick="importSettings()">&#11014; Backup wiederherstellen</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1017,7 +1031,7 @@ let stepStatus  = {};   // { 3: 'done'|'error', ... }
 let currentForm = {};
 
 // ============================================================
-// SETTINGS
+// SETTINGS — Struktur / Defaults
 // ============================================================
 function defaultSettings() {
   return {
@@ -1026,23 +1040,113 @@ function defaultSettings() {
     schedulerLocations: ['AQG'],
     smtpServer:         'smtp.cust.bmlc.local',
     mailFrom:           'noreply@quehenberger.com',
-    mailTo:           '',
-    defaultUser:      '',
-    scriptPaths:      [],
-    wrapperLogPaths:  [],
+    mailTo:             '',
+    defaultUser:        '',
+    scriptPaths:        [],
+    wrapperLogPaths:    [],
   };
 }
 
+// ============================================================
+// SETTINGS — Migration alter Datenstrukturen
+//
+// Hier werden veraltete Keys / Typ-Änderungen behandelt.
+// Neue Migrationen immer am Ende anhängen und kommentieren.
+// ============================================================
+function migrateSettings(s) {
+  let changed = false;
+
+  // v1 → v2: defaultScriptPath (String) → scriptPaths (Array)
+  if (typeof s.defaultScriptPath === 'string' && s.defaultScriptPath.trim()) {
+    if (!s.scriptPaths || s.scriptPaths.length === 0) {
+      s.scriptPaths = [s.defaultScriptPath.trim()];
+      changed = true;
+    }
+    delete s.defaultScriptPath;
+    changed = true;
+  }
+
+  // v1 → v2: defaultWrapperLogPath (String) → wrapperLogPaths (Array)
+  if (typeof s.defaultWrapperLogPath === 'string' && s.defaultWrapperLogPath.trim()) {
+    if (!s.wrapperLogPaths || s.wrapperLogPaths.length === 0) {
+      s.wrapperLogPaths = [s.defaultWrapperLogPath.trim()];
+      changed = true;
+    }
+    delete s.defaultWrapperLogPath;
+    changed = true;
+  }
+
+  // Typ-Guard: Array-Felder sicherstellen (falls JSON korrupt)
+  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths'].forEach(k => {
+    if (!Array.isArray(s[k])) { s[k] = []; changed = true; }
+  });
+
+  return changed;
+}
+
+// ============================================================
+// SETTINGS — Laden / Speichern
+// ============================================================
 function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return Object.assign(defaultSettings(), JSON.parse(raw));
-  } catch (e) { /* ignore */ }
+    if (raw) {
+      const s = Object.assign(defaultSettings(), JSON.parse(raw));
+      const changed = migrateSettings(s);
+      if (changed) saveSettings(s);   // migrierte Daten sofort zurückschreiben
+      return s;
+    }
+  } catch (e) { /* ignorieren, Fallback auf Defaults */ }
   return defaultSettings();
 }
 
 function saveSettings(s) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+// ============================================================
+// SETTINGS — Export / Import (Backup)
+// ============================================================
+function exportSettings() {
+  const s    = loadSettings();
+  const h    = loadHistory();
+  const data = JSON.stringify({ settings: s, history: h }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `lsm-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup heruntergeladen');
+}
+
+function importSettings() {
+  const input = document.createElement('input');
+  input.type  = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file   = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.settings) {
+          migrateSettings(data.settings);
+          saveSettings(data.settings);
+        }
+        if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+        showToast('Import erfolgreich');
+        renderSettingsTab();
+        refreshDropdowns();
+      } catch {
+        showToast('Fehler: ungültige Backup-Datei');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 }
 
 // ============================================================
