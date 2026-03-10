@@ -605,9 +605,23 @@
       <div class="card-body">
         <p class="text-muted" style="margin-bottom:16px;">Bitte alle Angaben pr&uuml;fen, bevor der Scheduler-Eintrag erstellt wird.</p>
         <table class="summary-table" id="summary-table"></table>
+
+        <!-- Auto-Start-Panel (nur sichtbar wenn API aktiv) -->
+        <div id="auto-all-panel" class="auto-panel" style="display:none; margin-top:20px;">
+          <div class="auto-panel-row">
+            <span class="api-dot online" style="flex-shrink:0;"></span>
+            <span class="auto-panel-title">API aktiv &ndash; vollautomatische Ausf&uuml;hrung verf&uuml;gbar</span>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-primary" id="auto-all-btn" onclick="autoRunAll()">&#9654; Start &ndash; Scheduler setzen &amp; Mail senden</button>
+            <span style="font-size:12px; color:#276749;">Erstellt den Task, pr&uuml;ft ihn und sendet die Benachrichtigung automatisch.</span>
+          </div>
+          <div id="auto-all-log" class="run-log" style="display:none; margin-top:12px;"></div>
+        </div>
+
         <div class="actions space-between" style="margin-top:20px;">
           <button class="btn btn-secondary" onclick="setStep(1)">&larr; Zur&uuml;ck</button>
-          <button class="btn btn-primary" onclick="setStep(3)">Weiter &rarr;</button>
+          <button class="btn btn-secondary" id="btn-manual-steps" onclick="setStep(3)">Manuell Schritt f&uuml;r Schritt &rarr;</button>
         </div>
       </div>
     </div>
@@ -1395,6 +1409,12 @@ function renderSummary() {
   document.getElementById('summary-table').innerHTML = rows.map(([k, v]) =>
     `<tr><td>${k}</td><td>${v || '<em class="text-muted">–</em>'}</td></tr>`
   ).join('');
+
+  // Auto-Start-Panel anzeigen wenn API verfügbar
+  const panel = document.getElementById('auto-all-panel');
+  const manBtn = document.getElementById('btn-manual-steps');
+  if (panel) panel.style.display = apiAvailable ? 'block' : 'none';
+  if (manBtn) manBtn.textContent  = apiAvailable ? 'Manuell Schritt für Schritt →' : 'Weiter →';
 }
 
 // ============================================================
@@ -1934,6 +1954,7 @@ async function checkApiAvailable() {
       apiAvailable = true;
       dot.className = 'api-dot online';
       lbl.textContent = 'API Online – Auto-Modus aktiv';
+      showToast('API gefunden – Auto-Modus aktiv');
     } else {
       throw new Error('ping failed');
     }
@@ -1942,6 +1963,8 @@ async function checkApiAvailable() {
     dot.className = 'api-dot offline';
     lbl.textContent = 'API Offline – manueller Modus';
   }
+  // Auto-Start-Panel aktualisieren falls User schon auf Schritt 2 ist
+  if (currentStep === 2) renderSummary();
 }
 
 // Zeigt/verbirgt Auto-Panel und blendet Manual-Script entsprechend aus
@@ -1996,6 +2019,142 @@ async function autoRun(stepNum) {
 
   btn.disabled = false;
   btn.innerHTML = origLabel;
+}
+
+// ============================================================
+// VOLLAUTOMATISCHER ABLAUF (autoRunAll)
+// Schritt 2 → Create Task → Verify → Mail → Done
+// ============================================================
+function buildMailBody(f) {
+  const s    = loadSettings();
+  const host = getTargetHost(f);
+  return `Hallo,
+
+der folgende Scheduled Task wurde erfolgreich am Remote-Host gesetzt:
+
+  UserID          : ${f.userId}
+  Wartungstyp     : ${f.maintenanceType}
+  Instanz Typ     : ${f.instanceType}
+  Backend Host    : ${NEEDS_BACKEND.includes(f.instanceType) ? f.backendHost : '–'}
+  DMZ Host        : ${NEEDS_DMZ.includes(f.instanceType)     ? f.dmzHost     : '–'}
+  Task Name       : ${f.taskName}
+  Scheduler Pfad  : \\${f.schedulerLocation}\\
+  Startzeitpunkt  : ${f.startTime.replace('T', ' ')}
+  PS-Skript       : ${f.scriptPath}\\${f.scriptName}
+  Wrapper Log     : ${f.wrapperLogPath}
+
+Mit freundlichen Grüßen`;
+}
+
+async function autoRunAll() {
+  const btn = document.getElementById('auto-all-btn');
+  const log = document.getElementById('auto-all-log');
+  const f   = currentForm;
+  const s   = loadSettings();
+  const host = getTargetHost(f);
+  const taskPath  = '\\' + f.schedulerLocation + '\\';
+  const scriptFull = f.scriptPath.replace(/\//g, '\\') + '\\' + f.scriptName;
+  const startFmt   = f.startTime.replace('T', ' ') + ':00';
+
+  log.innerHTML     = '';
+  log.style.display = 'block';
+  btn.disabled      = true;
+  const origLabel   = btn.innerHTML;
+  btn.innerHTML     = '<span class="btn-spin">&#8635;</span> Läuft...';
+
+  const ll = (text, cls) => logLine(log, text, cls);
+
+  try {
+    // ── 1. Scheduler Task anlegen ──────────────────────────
+    ll('── Schritt 1: Scheduler Task anlegen ──', 'log-info');
+    ll('Host   : ' + host, 'log-info');
+    ll('Task   : ' + taskPath + f.taskName, 'log-info');
+    ll('Start  : ' + startFmt, 'log-info');
+
+    const r1 = await fetch(API_URL + '/create-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: host, user: f.remoteUser, password: f.remotePassword,
+        taskName: f.taskName, taskPath: taskPath,
+        scriptFull: scriptFull, startTime: startFmt,
+      })
+    }).then(r => r.json());
+
+    if (!r1.ok) {
+      ll('[FEHLER] Task anlegen fehlgeschlagen: ' + r1.message, 'log-err');
+      btn.disabled = false; btn.innerHTML = origLabel;
+      return;
+    }
+    ll('[OK] Task registriert: ' + r1.taskPath + r1.taskName + ' [' + r1.state + ']', 'log-ok');
+    ll('', '');
+
+    // ── 2. Task prüfen ────────────────────────────────────
+    ll('── Schritt 2: Eintrag prüfen ──', 'log-info');
+
+    const r2 = await fetch(API_URL + '/verify-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: host, user: f.remoteUser, password: f.remotePassword,
+        taskName: f.taskName, taskPath: taskPath,
+      })
+    }).then(r => r.json());
+
+    if (!r2.ok) {
+      ll('[FEHLER] Task nicht gefunden: ' + r2.message, 'log-err');
+      btn.disabled = false; btn.innerHTML = origLabel;
+      return;
+    }
+    ll('[OK] Task bestätigt | Status: ' + r2.state + ' | Nächster Lauf: ' + r2.nextRunTime, 'log-ok');
+    ll('', '');
+
+    // ── 3. Mail senden ────────────────────────────────────
+    ll('── Schritt 3: Benachrichtigungsmail senden ──', 'log-info');
+    const mailTo = s.mailTo || '';
+    if (!mailTo) {
+      ll('[WARNUNG] Kein Standard-Empfänger konfiguriert – Mail übersprungen.', 'log-warn');
+    } else if (!s.smtpServer) {
+      ll('[WARNUNG] Kein SMTP-Server konfiguriert – Mail übersprungen.', 'log-warn');
+    } else {
+      const subject = `[Lobster] Scheduler-Eintrag gesetzt – ${f.maintenanceType} / ${f.instanceType}`;
+      const body    = buildMailBody(f);
+
+      const r3 = await fetch(API_URL + '/send-mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smtpServer: s.smtpServer, from: s.mailFrom,
+          to: mailTo, subject: subject, body: body,
+        })
+      }).then(r => r.json());
+
+      if (r3.ok) {
+        ll('[OK] Mail gesendet an: ' + mailTo, 'log-ok');
+      } else {
+        ll('[WARNUNG] Mail fehlgeschlagen: ' + r3.message, 'log-warn');
+      }
+    }
+
+    // ── Abschluss ─────────────────────────────────────────
+    ll('', '');
+    ll('✓ Alles erledigt!', 'log-ok');
+
+    // Schritte 3-6 als done markieren, dann zu Step 7
+    [3, 4, 5].forEach(n => { stepStatus[n] = 'done'; });
+    stepStatus[6] = mailTo ? 'done' : 'done';
+    renderStepProgress();
+
+    // Historie speichern und nach kurzer Pause zu Done springen
+    currentForm.mailSent = !!mailTo;
+    saveHistory(currentForm);
+    setTimeout(() => setStep(7), 1500);
+
+  } catch (e) {
+    ll('[FEHLER] Verbindung zur API fehlgeschlagen: ' + e.message, 'log-err');
+    btn.disabled = false;
+    btn.innerHTML = origLabel;
+  }
 }
 
 // --- Schritt 3: Skript + Log-Pfad prüfen ---
