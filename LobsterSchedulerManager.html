@@ -561,14 +561,16 @@
 
           <div class="form-group">
             <label>PS-Skript Pfad am Remote Host <span class="req">*</span></label>
-            <input type="text" id="f-scriptPath" placeholder="z.B. D:\Scripts\LobsterMaintenance" autocomplete="off" />
-            <span class="form-hint">Ordner auf dem Backend-Host</span>
+            <input type="text" id="f-scriptPath" list="dl-scriptPaths" placeholder="z.B. D:\Scripts\LobsterMaintenance" autocomplete="off" />
+            <datalist id="dl-scriptPaths"></datalist>
+            <span class="form-hint">Ordner auf dem Backend-Host &ndash; gespeicherte Pfade werden als Vorschlag angeboten</span>
           </div>
 
           <div class="form-group">
             <label>Wrapper Log Pfad am Remote Host <span class="req">*</span></label>
-            <input type="text" id="f-wrapperLogPath" placeholder="z.B. D:\lobster\logs\wrapper.log" autocomplete="off" />
-            <span class="form-hint">Vollständiger Pfad zur wrapper.log auf dem Remote-Host</span>
+            <input type="text" id="f-wrapperLogPath" list="dl-wrapperLogPaths" placeholder="z.B. D:\lobster\logs\wrapper.log" autocomplete="off" />
+            <datalist id="dl-wrapperLogPaths"></datalist>
+            <span class="form-hint">Vollst&auml;ndiger Pfad zur wrapper.log &ndash; gespeicherte Pfade werden als Vorschlag angeboten</span>
           </div>
 
         </div>
@@ -894,7 +896,31 @@
       </div>
     </div>
 
-    <!-- Default Values — spans full width -->
+    <!-- Skript-Pfade -->
+    <div class="card">
+      <div class="card-header"><div class="card-header-left"><span>&#128196;</span><h3>PS-Skript Pfade</h3></div></div>
+      <div class="card-body">
+        <div class="tag-list" id="list-scriptPaths"></div>
+        <div class="add-item-row">
+          <input type="text" id="new-scriptPath" placeholder="D:\Scripts\LobsterMaintenance" onkeydown="if(event.key==='Enter') addItem('scriptPaths','new-scriptPath')" />
+          <button class="btn btn-primary btn-sm" onclick="addItem('scriptPaths','new-scriptPath')">+ Hinzuf&uuml;gen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wrapper Log-Pfade -->
+    <div class="card">
+      <div class="card-header"><div class="card-header-left"><span>&#128221;</span><h3>Wrapper Log Pfade</h3></div></div>
+      <div class="card-body">
+        <div class="tag-list" id="list-wrapperLogPaths"></div>
+        <div class="add-item-row">
+          <input type="text" id="new-wrapperLogPath" placeholder="D:\lobster\logs\wrapper.log" onkeydown="if(event.key==='Enter') addItem('wrapperLogPaths','new-wrapperLogPath')" />
+          <button class="btn btn-primary btn-sm" onclick="addItem('wrapperLogPaths','new-wrapperLogPath')">+ Hinzuf&uuml;gen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Standard-Werte — spans full width -->
     <div class="card" style="grid-column:1/-1;">
       <div class="card-header"><div class="card-header-left"><span>&#128295;</span><h3>Standard-Werte</h3></div></div>
       <div class="card-body">
@@ -902,14 +928,6 @@
           <div class="form-group">
             <label>Standard Benutzername</label>
             <input type="text" id="s-defaultUser" placeholder="DOMAIN\Benutzer" />
-          </div>
-          <div class="form-group">
-            <label>Standard PS-Skript Pfad</label>
-            <input type="text" id="s-defaultScriptPath" placeholder="D:\Scripts\LobsterMaintenance" />
-          </div>
-          <div class="form-group">
-            <label>Standard Wrapper Log Pfad</label>
-            <input type="text" id="s-defaultWrapperLogPath" placeholder="D:\lobster\logs\wrapper.log" />
           </div>
         </div>
         <div class="actions" style="margin-top:12px;">
@@ -1008,10 +1026,10 @@ function defaultSettings() {
     schedulerLocations: ['AQG'],
     smtpServer:         'smtp.cust.bmlc.local',
     mailFrom:           'noreply@quehenberger.com',
-    mailTo:                '',
-    defaultUser:           '',
-    defaultScriptPath:     '',
-    defaultWrapperLogPath: '',
+    mailTo:           '',
+    defaultUser:      '',
+    scriptPaths:      [],
+    wrapperLogPaths:  [],
   };
 }
 
@@ -1221,8 +1239,8 @@ function resetForm() {
   document.getElementById('f-remotePassword').value = '';
   const s = loadSettings();
   document.getElementById('f-remoteUser').value     = s.defaultUser || '';
-  document.getElementById('f-scriptPath').value     = s.defaultScriptPath || '';
-  document.getElementById('f-wrapperLogPath').value = s.defaultWrapperLogPath || '';
+  document.getElementById('f-scriptPath').value     = (s.scriptPaths    && s.scriptPaths[0])    || '';
+  document.getElementById('f-wrapperLogPath').value = (s.wrapperLogPaths && s.wrapperLogPaths[0]) || '';
   document.getElementById('f-detectedScript').style.color = '';
   document.getElementById('script-hint').textContent = '';
   onInstanceTypeChange();
@@ -1623,15 +1641,15 @@ function renderHistory() {
 // ============================================================
 function renderSettingsTab() {
   const s = loadSettings();
-  renderTagList('list-backendHosts',       s.backendHosts,       'backendHosts');
-  renderTagList('list-dmzHosts',           s.dmzHosts,           'dmzHosts');
-  renderTagList('list-schedulerLocations', s.schedulerLocations, 'schedulerLocations');
-  document.getElementById('s-smtpServer').value       = s.smtpServer || '';
-  document.getElementById('s-mailFrom').value         = s.mailFrom   || '';
-  document.getElementById('s-mailTo').value           = s.mailTo     || '';
-  document.getElementById('s-defaultUser').value           = s.defaultUser           || '';
-  document.getElementById('s-defaultScriptPath').value     = s.defaultScriptPath     || '';
-  document.getElementById('s-defaultWrapperLogPath').value = s.defaultWrapperLogPath || '';
+  renderTagList('list-backendHosts',       s.backendHosts,            'backendHosts');
+  renderTagList('list-dmzHosts',           s.dmzHosts,                'dmzHosts');
+  renderTagList('list-schedulerLocations', s.schedulerLocations,      'schedulerLocations');
+  renderTagList('list-scriptPaths',        s.scriptPaths    || [],    'scriptPaths');
+  renderTagList('list-wrapperLogPaths',    s.wrapperLogPaths || [],   'wrapperLogPaths');
+  document.getElementById('s-smtpServer').value  = s.smtpServer  || '';
+  document.getElementById('s-mailFrom').value    = s.mailFrom    || '';
+  document.getElementById('s-mailTo').value      = s.mailTo      || '';
+  document.getElementById('s-defaultUser').value = s.defaultUser || '';
 }
 
 function renderTagList(containerId, items, listKey) {
@@ -1678,9 +1696,7 @@ function saveMailSettings() {
 
 function saveDefaultSettings() {
   const s          = loadSettings();
-  s.defaultUser           = document.getElementById('s-defaultUser').value.trim();
-  s.defaultScriptPath     = document.getElementById('s-defaultScriptPath').value.trim();
-  s.defaultWrapperLogPath = document.getElementById('s-defaultWrapperLogPath').value.trim();
+  s.defaultUser = document.getElementById('s-defaultUser').value.trim();
   saveSettings(s);
   showToast('Standard-Werte gespeichert');
 }
@@ -1708,6 +1724,14 @@ function refreshDropdowns() {
   const slV = sl.value;
   const locs = s.schedulerLocations.length ? s.schedulerLocations : ['AQG'];
   sl.innerHTML = locs.map(l => `<option${l === slV ? ' selected' : ''}>${l}</option>`).join('');
+
+  // Skript-Pfade Datalist
+  const spDl = document.getElementById('dl-scriptPaths');
+  if (spDl) spDl.innerHTML = (s.scriptPaths || []).map(p => `<option value="${p}">`).join('');
+
+  // Wrapper Log-Pfade Datalist
+  const wlDl = document.getElementById('dl-wrapperLogPaths');
+  if (wlDl) wlDl.innerHTML = (s.wrapperLogPaths || []).map(p => `<option value="${p}">`).join('');
 }
 
 // ============================================================
@@ -1772,9 +1796,9 @@ function setDefaultStartTime() {
 
 function init() {
   const s = loadSettings();
-  document.getElementById('f-remoteUser').value     = s.defaultUser           || '';
-  document.getElementById('f-scriptPath').value     = s.defaultScriptPath     || '';
-  document.getElementById('f-wrapperLogPath').value = s.defaultWrapperLogPath || '';
+  document.getElementById('f-remoteUser').value     = s.defaultUser || '';
+  document.getElementById('f-scriptPath').value     = (s.scriptPaths    && s.scriptPaths[0])    || '';
+  document.getElementById('f-wrapperLogPath').value = (s.wrapperLogPaths && s.wrapperLogPaths[0]) || '';
   refreshDropdowns();
   setDefaultStartTime();
   onInstanceTypeChange();
