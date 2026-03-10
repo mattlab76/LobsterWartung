@@ -495,11 +495,6 @@
             <label>Wartungstyp <span class="req">*</span></label>
             <select id="f-maintenanceType" onchange="onMaintenanceTypeChange()">
               <option value="">&ndash; bitte w&auml;hlen &ndash;</option>
-              <option>Start-Wartung</option>
-              <option>Restart-Lobster</option>
-              <option>Stop-Lobster</option>
-              <option>Start-Lobster</option>
-              <option value="Update-Lobster" disabled>Update-Lobster (kommt sp&auml;ter)</option>
             </select>
           </div>
 
@@ -507,11 +502,6 @@
             <label>Instanz Typ <span class="req">*</span></label>
             <select id="f-instanceType" onchange="onInstanceTypeChange()">
               <option value="">&ndash; bitte w&auml;hlen &ndash;</option>
-              <option>Backend und DMZ</option>
-              <option>Backend und DMZ (Backend via Webservice)</option>
-              <option>Backend</option>
-              <option>Backend (Backend via Webservice)</option>
-              <option>DMZ</option>
             </select>
           </div>
 
@@ -950,6 +940,48 @@
       </div>
     </div>
 
+    <!-- Script-Zuordnungen (SCRIPT_MAP) — spans full width -->
+    <div class="card" style="grid-column:1/-1;">
+      <div class="card-header"><div class="card-header-left"><span>&#128279;</span><h3>Script-Zuordnungen</h3></div></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+          Bestimmt welches Script bei welcher Wartungstyp/Instanz-Typ Kombination verwendet wird.
+          Neue Eintr&auml;ge erscheinen sofort in den Dropdowns im Formular.
+        </p>
+        <div style="overflow-x:auto;">
+          <table id="mapping-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:var(--bg-secondary);">
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Wartungstyp</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Instanz Typ</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Script-Name</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:40px;"></th>
+              </tr>
+            </thead>
+            <tbody id="mapping-rows"></tbody>
+          </table>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:12px;align-items:end;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Wartungstyp</label>
+            <input type="text" id="new-map-mt" placeholder="z.B. Stop-Lobster" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addScriptMapping()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Instanz Typ</label>
+            <input type="text" id="new-map-it" placeholder="z.B. Backend und DMZ" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addScriptMapping()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Script-Name</label>
+            <input type="text" id="new-map-script" placeholder="z.B. Stop-BackendAndDmz.ps1" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addScriptMapping()" />
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addScriptMapping()">+ Hinzuf&uuml;gen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Backup / Import — spans full width -->
     <div class="card" style="grid-column:1/-1;">
       <div class="card-header"><div class="card-header-left"><span>&#128229;</span><h3>Backup &amp; Import</h3></div></div>
@@ -993,49 +1025,25 @@ const STEPS = [
   { id: 7, label: 'Abschluss' },
 ];
 
-// Script mapping: MaintenanceType -> InstanceType -> ScriptName
-const SCRIPT_MAP = {
-  'Start-Wartung': {
-    'Backend und DMZ':                          'Start-BackendAndDmz.ps1',
-    'Backend und DMZ (Backend via Webservice)': 'Start-BackendAndDmz.ps1',
-    'Backend':                                  'Start-Backend.ps1',
-    'Backend (Backend via Webservice)':         'Start-Backend.ps1',
-    'DMZ':                                      'Start-Dmz.ps1',
-  },
-  'Restart-Lobster': {
-    'Backend und DMZ':                          'Restart-BackendAndDmz.ps1',
-    'Backend und DMZ (Backend via Webservice)': 'Restart-BackendAndDmz-Webservice.ps1',
-    'Backend':                                  'Restart-Backend.ps1',
-    'Backend (Backend via Webservice)':         'Restart-Backend-Webservice.ps1',
-    'DMZ':                                      'Restart-Dmz.ps1',
-  },
-  'Stop-Lobster': {
-    'Backend und DMZ':                          'Stop-BackendAndDmz.ps1',
-    'Backend und DMZ (Backend via Webservice)': 'Stop-BackendAndDmz-Webservice.ps1',
-    'Backend':                                  'Stop-Backend.ps1',
-    'Backend (Backend via Webservice)':         'Stop-Backend-Webservice.ps1',
-    'DMZ':                                      'Stop-Dmz.ps1',
-  },
-  'Start-Lobster': {
-    'Backend und DMZ':                          'Start-BackendAndDmz.ps1',
-    'Backend und DMZ (Backend via Webservice)': 'Start-BackendAndDmz.ps1',
-    'Backend':                                  'Start-Backend.ps1',
-    'Backend (Backend via Webservice)':         'Start-Backend.ps1',
-    'DMZ':                                      'Start-Dmz.ps1',
-  },
-};
+// Script mapping: aus Settings laden (konfigurierbar)
+function getScriptMap() {
+  const mappings = loadSettings().scriptMappings || [];
+  const map = {};
+  mappings.forEach(({ mt, it, script }) => {
+    if (!map[mt]) map[mt] = {};
+    map[mt][it] = script;
+  });
+  return map;
+}
 
-const NEEDS_BACKEND = [
-  'Backend und DMZ',
-  'Backend und DMZ (Backend via Webservice)',
-  'Backend',
-  'Backend (Backend via Webservice)',
-];
-const NEEDS_DMZ = [
-  'Backend und DMZ',
-  'Backend und DMZ (Backend via Webservice)',
-  'DMZ',
-];
+// Instanz-Typ benötigt Backend-Host wenn "Backend" im Namen vorkommt
+function needsBackend(instanceType) {
+  return /backend/i.test(instanceType);
+}
+// Instanz-Typ benötigt DMZ-Host wenn "DMZ" im Namen vorkommt
+function needsDmz(instanceType) {
+  return /dmz/i.test(instanceType);
+}
 
 // ============================================================
 // STATE
@@ -1058,6 +1066,28 @@ function defaultSettings() {
     defaultUser:        '',
     scriptPaths:        [],
     wrapperLogPaths:    [],
+    scriptMappings: [
+      { mt: 'Stop-Lobster',    it: 'Backend und DMZ',                          script: 'Stop-BackendAndDmz.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend und DMZ (Backend via Webservice)', script: 'Stop-BackendAndDmz-Webservice.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend',                                  script: 'Stop-Backend.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend (Backend via Webservice)',          script: 'Stop-Backend-Webservice.ps1' },
+      { mt: 'Stop-Lobster',    it: 'DMZ',                                      script: 'Stop-Dmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend und DMZ',                          script: 'Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend und DMZ (Backend via Webservice)', script: 'Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend',                                  script: 'Start-Backend.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend (Backend via Webservice)',          script: 'Start-Backend.ps1' },
+      { mt: 'Start-Lobster',   it: 'DMZ',                                      script: 'Start-Dmz.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend und DMZ',                          script: 'Restart-BackendAndDmz.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend und DMZ (Backend via Webservice)', script: 'Restart-BackendAndDmz-Webservice.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend',                                  script: 'Restart-Backend.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend (Backend via Webservice)',          script: 'Restart-Backend-Webservice.ps1' },
+      { mt: 'Restart-Lobster', it: 'DMZ',                                      script: 'Restart-Dmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend und DMZ',                          script: 'Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend und DMZ (Backend via Webservice)', script: 'Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend',                                  script: 'Start-Backend.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend (Backend via Webservice)',          script: 'Start-Backend.ps1' },
+      { mt: 'Start-Wartung',   it: 'DMZ',                                      script: 'Start-Dmz.ps1' },
+    ],
   };
 }
 
@@ -1091,7 +1121,7 @@ function migrateSettings(s) {
   }
 
   // Typ-Guard: Array-Felder sicherstellen (falls JSON korrupt)
-  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths'].forEach(k => {
+  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','scriptMappings'].forEach(k => {
     if (!Array.isArray(s[k])) { s[k] = []; changed = true; }
   });
 
@@ -1277,13 +1307,15 @@ function getFormValues() {
 }
 
 function onMaintenanceTypeChange() {
+  // Instanz-Typ Optionen auf die zum Wartungstyp passenden einschränken
+  refreshDropdowns();
   updateDetectedScript();
 }
 
 function onInstanceTypeChange() {
   const it = document.getElementById('f-instanceType').value;
-  document.getElementById('group-backendHost').classList.toggle('hidden', !NEEDS_BACKEND.includes(it));
-  document.getElementById('group-dmzHost').classList.toggle('hidden', !NEEDS_DMZ.includes(it));
+  document.getElementById('group-backendHost').classList.toggle('hidden', !needsBackend(it));
+  document.getElementById('group-dmzHost').classList.toggle('hidden', !needsDmz(it));
   updateDetectedScript();
 }
 
@@ -1294,14 +1326,11 @@ function updateDetectedScript() {
   const hint = document.getElementById('script-hint');
   const taskInp = document.getElementById('f-taskName');
 
-  if (mt && it && SCRIPT_MAP[mt] && SCRIPT_MAP[mt][it]) {
-    inp.value = SCRIPT_MAP[mt][it];
+  const scriptMap = getScriptMap();
+  if (mt && it && scriptMap[mt] && scriptMap[mt][it]) {
+    inp.value = scriptMap[mt][it];
     inp.style.color = 'var(--success)';
     hint.textContent = '';
-  } else if (mt === 'Update-Lobster') {
-    inp.value = '(noch nicht verfügbar)';
-    inp.style.color = 'var(--warning)';
-    hint.textContent = 'Update-Lobster ist noch nicht implementiert.';
   } else if (mt && it) {
     inp.value = '(keine Zuordnung vorhanden)';
     inp.style.color = 'var(--error)';
@@ -1327,8 +1356,8 @@ function validateForm() {
   if (!f.userId)            errors.push('UserID fehlt');
   if (!f.maintenanceType)   errors.push('Wartungstyp fehlt');
   if (!f.instanceType)      errors.push('Instanz Typ fehlt');
-  if (NEEDS_BACKEND.includes(f.instanceType) && !f.backendHost) errors.push('Backend Host fehlt');
-  if (NEEDS_DMZ.includes(f.instanceType)     && !f.dmzHost)     errors.push('DMZ Host fehlt');
+  if (needsBackend(f.instanceType) && !f.backendHost) errors.push('Backend Host fehlt');
+  if (needsDmz(f.instanceType)    && !f.dmzHost)     errors.push('DMZ Host fehlt');
   if (!f.remoteUser)        errors.push('Benutzername fehlt');
   if (!f.remotePassword)    errors.push('Passwort fehlt');
   if (!f.startTime)         errors.push('Startzeitpunkt fehlt');
@@ -1395,8 +1424,8 @@ function renderSummary() {
     ['UserID',                    f.userId],
     ['Wartungstyp',               f.maintenanceType],
     ['Instanz Typ',               f.instanceType],
-    ['Backend Host',              NEEDS_BACKEND.includes(f.instanceType) ? f.backendHost : '&ndash;'],
-    ['DMZ Host',                  NEEDS_DMZ.includes(f.instanceType)     ? f.dmzHost     : '&ndash;'],
+    ['Backend Host',              needsBackend(f.instanceType) ? f.backendHost : '&ndash;'],
+    ['DMZ Host',                  needsDmz(f.instanceType)     ? f.dmzHost     : '&ndash;'],
     ['Benutzername (Remote)',     f.remoteUser],
     ['Passwort',                  '&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;'],
     ['Startzeitpunkt',            f.startTime.replace('T', ' ')],
@@ -1422,7 +1451,7 @@ function renderSummary() {
 // ============================================================
 function getTargetHost(f) {
   // Scripts always run FROM the backend host; DMZ-only uses dmzHost
-  return NEEDS_BACKEND.includes(f.instanceType) ? f.backendHost : f.dmzHost;
+  return needsBackend(f.instanceType) ? f.backendHost : f.dmzHost;
 }
 
 function escPw(pw) {
@@ -1599,8 +1628,8 @@ der folgende Scheduled Task wurde erfolgreich am Remote-Host gesetzt:
   UserID          : ${f.userId}
   Wartungstyp     : ${f.maintenanceType}
   Instanz Typ     : ${f.instanceType}
-  Backend Host    : ${NEEDS_BACKEND.includes(f.instanceType) ? f.backendHost : '\u2013'}
-  DMZ Host        : ${NEEDS_DMZ.includes(f.instanceType)     ? f.dmzHost     : '\u2013'}
+  Backend Host    : ${needsBackend(f.instanceType) ? f.backendHost : '\u2013'}
+  DMZ Host        : ${needsDmz(f.instanceType)     ? f.dmzHost     : '\u2013'}
   Task Name       : ${f.taskName}
   Scheduler Pfad  : \\${f.schedulerLocation}\\
   Startzeitpunkt  : ${f.startTime.replace('T', ' ')}
@@ -1774,6 +1803,51 @@ function renderSettingsTab() {
   document.getElementById('s-mailFrom').value    = s.mailFrom    || '';
   document.getElementById('s-mailTo').value      = s.mailTo      || '';
   document.getElementById('s-defaultUser').value = s.defaultUser || '';
+  renderMappingTable(s.scriptMappings || []);
+}
+
+function renderMappingTable(mappings) {
+  const tbody = document.getElementById('mapping-rows');
+  if (!tbody) return;
+  if (mappings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:10px;color:var(--text-muted);font-size:13px;">Keine Eintr&auml;ge</td></tr>';
+    return;
+  }
+  tbody.innerHTML = mappings.map((m, i) => `
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 10px;">${m.mt}</td>
+      <td style="padding:7px 10px;">${m.it}</td>
+      <td style="padding:7px 10px;font-family:monospace;">${m.script}</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <span style="cursor:pointer;color:var(--error);font-size:16px;" onclick="removeScriptMapping(${i})" title="Entfernen">&times;</span>
+      </td>
+    </tr>`).join('');
+}
+
+function addScriptMapping() {
+  const mt     = document.getElementById('new-map-mt').value.trim();
+  const it     = document.getElementById('new-map-it').value.trim();
+  const script = document.getElementById('new-map-script').value.trim();
+  if (!mt || !it || !script) { showToast('Alle drei Felder ausf\u00fcllen'); return; }
+  const s = loadSettings();
+  const exists = (s.scriptMappings || []).some(m => m.mt === mt && m.it === it);
+  if (exists) { showToast('Diese Kombination existiert bereits'); return; }
+  s.scriptMappings.push({ mt, it, script });
+  saveSettings(s);
+  document.getElementById('new-map-mt').value     = '';
+  document.getElementById('new-map-it').value     = '';
+  document.getElementById('new-map-script').value = '';
+  renderSettingsTab();
+  refreshDropdowns();
+  showToast('Zuordnung gespeichert');
+}
+
+function removeScriptMapping(idx) {
+  const s = loadSettings();
+  s.scriptMappings.splice(idx, 1);
+  saveSettings(s);
+  renderSettingsTab();
+  refreshDropdowns();
 }
 
 function renderTagList(containerId, items, listKey) {
@@ -1830,6 +1904,22 @@ function saveDefaultSettings() {
 // ============================================================
 function refreshDropdowns() {
   const s = loadSettings();
+
+  // Wartungstyp Dropdown (aus scriptMappings ableiten)
+  const mt    = document.getElementById('f-maintenanceType');
+  const mtV   = mt.value;
+  const mtOpts = [...new Set((s.scriptMappings || []).map(m => m.mt))];
+  mt.innerHTML = '<option value="">&ndash; bitte w&auml;hlen &ndash;</option>' +
+    mtOpts.map(v => `<option${v === mtV ? ' selected' : ''}>${v}</option>`).join('');
+
+  // Instanz Typ Dropdown (aus scriptMappings ableiten, gefiltert nach gewähltem Wartungstyp)
+  const it    = document.getElementById('f-instanceType');
+  const itV   = it.value;
+  const itOpts = [...new Set((s.scriptMappings || [])
+    .filter(m => !mtV || m.mt === mtV)
+    .map(m => m.it))];
+  it.innerHTML = '<option value="">&ndash; bitte w&auml;hlen &ndash;</option>' +
+    itOpts.map(v => `<option${v === itV ? ' selected' : ''}>${v}</option>`).join('');
 
   // Backend Hosts
   const bh  = document.getElementById('f-backendHost');
@@ -2035,8 +2125,8 @@ der folgende Scheduled Task wurde erfolgreich am Remote-Host gesetzt:
   UserID          : ${f.userId}
   Wartungstyp     : ${f.maintenanceType}
   Instanz Typ     : ${f.instanceType}
-  Backend Host    : ${NEEDS_BACKEND.includes(f.instanceType) ? f.backendHost : '–'}
-  DMZ Host        : ${NEEDS_DMZ.includes(f.instanceType)     ? f.dmzHost     : '–'}
+  Backend Host    : ${needsBackend(f.instanceType) ? f.backendHost : '–'}
+  DMZ Host        : ${needsDmz(f.instanceType)     ? f.dmzHost     : '–'}
   Task Name       : ${f.taskName}
   Scheduler Pfad  : \\${f.schedulerLocation}\\
   Startzeitpunkt  : ${f.startTime.replace('T', ' ')}
