@@ -15,6 +15,68 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# ---- Users-Datei -------------------------------------------
+$script:UsersFile = Join-Path $PSScriptRoot 'users.json'
+$script:Sessions  = @{}   # token → { username, displayName, role, expires }
+
+function Get-UsersDb {
+    if (Test-Path $script:UsersFile) {
+        return @(Get-Content $script:UsersFile -Raw -Encoding UTF8 | ConvertFrom-Json)
+    }
+    return @()
+}
+
+function Save-UsersDb {
+    param([array]$Users)
+    $Users | ConvertTo-Json -Depth 5 | Set-Content $script:UsersFile -Encoding UTF8
+}
+
+function Get-PasswordHash {
+    param([string]$Plain)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Plain)
+    $hash  = $sha.ComputeHash($bytes)
+    return [BitConverter]::ToString($hash).Replace('-','').ToLower()
+}
+
+function New-SessionToken {
+    $rng   = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+    $bytes = [byte[]]::new(32)
+    $rng.GetBytes($bytes)
+    return [BitConverter]::ToString($bytes).Replace('-','').ToLower()
+}
+
+function Initialize-UsersFile {
+    if (-not (Test-Path $script:UsersFile)) {
+        $adminHash = Get-PasswordHash 'admin'
+        $defaultUsers = @(
+            @{
+                username      = 'admin'
+                displayName   = 'Administrator'
+                company       = ''
+                role          = 'admin'
+                passwordHash  = $adminHash
+                mustChangePassword = $true
+            }
+        )
+        Save-UsersDb $defaultUsers
+        Write-Log "users.json mit Default-User 'admin' angelegt (Passwort: admin)" -Color Yellow
+    }
+}
+
+function Test-Session {
+    param([System.Net.HttpListenerRequest]$Request)
+    $authHeader = $Request.Headers['Authorization']
+    if (-not $authHeader) { return $null }
+    $token = $authHeader -replace '^Bearer\s+', ''
+    if ($script:Sessions.ContainsKey($token)) {
+        $s = $script:Sessions[$token]
+        if ($s.expires -gt (Get-Date)) { return $s }
+        $script:Sessions.Remove($token)
+    }
+    return $null
+}
+
 # ---- Logging -----------------------------------------------
 function Write-Log {
     param([string]$Msg, [string]$Color = 'White')
@@ -36,7 +98,7 @@ function Send-JsonResponse {
     $Response.ContentLength64 = $bytes.Length
     $Response.Headers.Add('Access-Control-Allow-Origin',  '*')
     $Response.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    $Response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+    $Response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     $Response.OutputStream.Write($bytes, 0, $bytes.Length)
     $Response.OutputStream.Close()
 }
@@ -59,6 +121,8 @@ function New-CredentialFromBody {
 }
 
 # ---- Listener starten ---------------------------------------
+Initialize-UsersFile
+
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
@@ -97,7 +161,7 @@ try {
                 # GET /ping  – Health-Check
                 # --------------------------------------------------
                 '/ping' {
-                    Send-JsonResponse -Response $resp -Data @{ ok = $true; version = '1.0' }
+                    Send-JsonResponse -Response $resp -Data @{ ok = $true; version = '1.1' }
                     Write-Log '  → pong' -Color DarkGray
                 }
 
@@ -281,6 +345,218 @@ try {
                         message = "Mail gesendet an: $($b.to)"
                     }
                     Write-Log "  Mail gesendet an $($b.to)" -Color Green
+                }
+
+                # --------------------------------------------------
+                # POST /login
+                # Body: { username, password }
+                # --------------------------------------------------
+                '/login' {
+                    $b = Get-RequestBody $req
+                    $users = Get-UsersDb
+                    $u = $users | Where-Object { $_.username -eq $b.username } | Select-Object -First 1
+
+                    if (-not $u) {
+                        Send-JsonResponse -Response $resp -StatusCode 401 -Data @{
+                            ok = $false; message = 'Benutzername oder Passwort falsch'
+                        }
+                        Write-Log "  Login fehlgeschlagen: $($b.username) (nicht gefunden)" -Color Red
+                        break
+                    }
+
+                    $hash = Get-PasswordHash $b.password
+                    if ($hash -ne $u.passwordHash) {
+                        Send-JsonResponse -Response $resp -StatusCode 401 -Data @{
+                            ok = $false; message = 'Benutzername oder Passwort falsch'
+                        }
+                        Write-Log "  Login fehlgeschlagen: $($b.username) (falsches Passwort)" -Color Red
+                        break
+                    }
+
+                    $token = New-SessionToken
+                    $script:Sessions[$token] = @{
+                        username    = $u.username
+                        displayName = $u.displayName
+                        company     = $u.company
+                        role        = $u.role
+                        expires     = (Get-Date).AddHours(12)
+                    }
+
+                    $mustChange = if ($u.mustChangePassword) { $true } else { $false }
+
+                    Send-JsonResponse -Response $resp -Data @{
+                        ok                 = $true
+                        token              = $token
+                        username           = $u.username
+                        displayName        = $u.displayName
+                        company            = $u.company
+                        role               = $u.role
+                        mustChangePassword = $mustChange
+                    }
+                    Write-Log "  Login OK: $($u.username) ($($u.displayName))" -Color Green
+                }
+
+                # --------------------------------------------------
+                # POST /logout
+                # Header: Authorization: Bearer <token>
+                # --------------------------------------------------
+                '/logout' {
+                    $session = Test-Session $req
+                    if ($session) {
+                        $authHeader = $req.Headers['Authorization']
+                        $token = $authHeader -replace '^Bearer\s+', ''
+                        $script:Sessions.Remove($token)
+                    }
+                    Send-JsonResponse -Response $resp -Data @{ ok = $true }
+                    Write-Log "  Logout" -Color DarkGray
+                }
+
+                # --------------------------------------------------
+                # POST /change-password
+                # Header: Authorization: Bearer <token>
+                # Body: { oldPassword, newPassword }
+                # --------------------------------------------------
+                '/change-password' {
+                    $session = Test-Session $req
+                    if (-not $session) {
+                        Send-JsonResponse -Response $resp -StatusCode 401 -Data @{
+                            ok = $false; message = 'Nicht angemeldet'
+                        }
+                        break
+                    }
+
+                    $b     = Get-RequestBody $req
+                    $users = Get-UsersDb
+                    $u     = $users | Where-Object { $_.username -eq $session.username } | Select-Object -First 1
+
+                    $oldHash = Get-PasswordHash $b.oldPassword
+                    if ($oldHash -ne $u.passwordHash) {
+                        Send-JsonResponse -Response $resp -StatusCode 400 -Data @{
+                            ok = $false; message = 'Altes Passwort ist falsch'
+                        }
+                        break
+                    }
+
+                    $u.passwordHash = Get-PasswordHash $b.newPassword
+                    $u.mustChangePassword = $false
+                    Save-UsersDb $users
+                    Send-JsonResponse -Response $resp -Data @{ ok = $true; message = 'Passwort geaendert' }
+                    Write-Log "  Passwort geaendert: $($session.username)" -Color Green
+                }
+
+                # --------------------------------------------------
+                # GET /session
+                # Header: Authorization: Bearer <token>
+                # --------------------------------------------------
+                '/session' {
+                    $session = Test-Session $req
+                    if ($session) {
+                        Send-JsonResponse -Response $resp -Data @{
+                            ok          = $true
+                            username    = $session.username
+                            displayName = $session.displayName
+                            company     = $session.company
+                            role        = $session.role
+                        }
+                    } else {
+                        Send-JsonResponse -Response $resp -StatusCode 401 -Data @{
+                            ok = $false; message = 'Nicht angemeldet'
+                        }
+                    }
+                }
+
+                # --------------------------------------------------
+                # GET /users  (nur Admin)
+                # POST /users  (nur Admin) — Body: { username, password, displayName, company, role }
+                # DELETE /users/<username>  (nur Admin)
+                # --------------------------------------------------
+                { $_ -eq '/users' -or $_ -like '/users/*' } {
+                    $session = Test-Session $req
+                    if (-not $session -or $session.role -ne 'admin') {
+                        Send-JsonResponse -Response $resp -StatusCode 403 -Data @{
+                            ok = $false; message = 'Nur Administratoren'
+                        }
+                        break
+                    }
+
+                    $users = Get-UsersDb
+
+                    if ($req.HttpMethod -eq 'GET') {
+                        # Liste ohne Passwort-Hashes
+                        $safe = $users | ForEach-Object {
+                            @{
+                                username    = $_.username
+                                displayName = $_.displayName
+                                company     = $_.company
+                                role        = $_.role
+                                mustChangePassword = [bool]$_.mustChangePassword
+                            }
+                        }
+                        Send-JsonResponse -Response $resp -Data @{ ok = $true; users = @($safe) }
+                    }
+                    elseif ($req.HttpMethod -eq 'POST') {
+                        $b = Get-RequestBody $req
+                        $exists = $users | Where-Object { $_.username -eq $b.username }
+                        if ($exists) {
+                            Send-JsonResponse -Response $resp -StatusCode 400 -Data @{
+                                ok = $false; message = "Benutzer '$($b.username)' existiert bereits"
+                            }
+                            break
+                        }
+                        $newUser = @{
+                            username           = $b.username
+                            displayName        = if ($b.displayName) { $b.displayName } else { $b.username }
+                            company            = if ($b.company) { $b.company } else { '' }
+                            role               = if ($b.role) { $b.role } else { 'user' }
+                            passwordHash       = Get-PasswordHash $b.password
+                            mustChangePassword = $true
+                        }
+                        $users += $newUser
+                        Save-UsersDb $users
+                        Send-JsonResponse -Response $resp -Data @{ ok = $true; message = "Benutzer '$($b.username)' angelegt" }
+                        Write-Log "  User angelegt: $($b.username)" -Color Green
+                    }
+                    elseif ($req.HttpMethod -eq 'DELETE') {
+                        $delUser = $path -replace '/users/', ''
+                        if ($delUser -eq $session.username) {
+                            Send-JsonResponse -Response $resp -StatusCode 400 -Data @{
+                                ok = $false; message = 'Eigenen Account kann man nicht loeschen'
+                            }
+                            break
+                        }
+                        $users = @($users | Where-Object { $_.username -ne $delUser })
+                        Save-UsersDb $users
+                        Send-JsonResponse -Response $resp -Data @{ ok = $true; message = "Benutzer '$delUser' geloescht" }
+                        Write-Log "  User geloescht: $delUser" -Color Yellow
+                    }
+                }
+
+                # --------------------------------------------------
+                # POST /reset-password  (nur Admin)
+                # Body: { username, newPassword }
+                # --------------------------------------------------
+                '/reset-password' {
+                    $session = Test-Session $req
+                    if (-not $session -or $session.role -ne 'admin') {
+                        Send-JsonResponse -Response $resp -StatusCode 403 -Data @{
+                            ok = $false; message = 'Nur Administratoren'
+                        }
+                        break
+                    }
+                    $b     = Get-RequestBody $req
+                    $users = Get-UsersDb
+                    $u     = $users | Where-Object { $_.username -eq $b.username } | Select-Object -First 1
+                    if (-not $u) {
+                        Send-JsonResponse -Response $resp -StatusCode 404 -Data @{
+                            ok = $false; message = "Benutzer '$($b.username)' nicht gefunden"
+                        }
+                        break
+                    }
+                    $u.passwordHash = Get-PasswordHash $b.newPassword
+                    $u.mustChangePassword = $true
+                    Save-UsersDb $users
+                    Send-JsonResponse -Response $resp -Data @{ ok = $true; message = "Passwort fuer '$($b.username)' zurueckgesetzt" }
+                    Write-Log "  Passwort-Reset: $($b.username)" -Color Yellow
                 }
 
                 default {

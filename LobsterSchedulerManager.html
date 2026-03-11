@@ -462,6 +462,39 @@
     box-shadow: 0 2px 12px rgba(46,134,222,.18);
   }
 
+  /* ---- Login Overlay ---- */
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 10000;
+    background: linear-gradient(135deg, #8b0000 0%, #5a0000 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    background: white; border-radius: 12px; padding: 40px 36px;
+    width: 380px; max-width: 92vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .login-box .login-logo {
+    text-align: center; margin-bottom: 28px;
+  }
+  .login-box .login-logo h2 {
+    font-size: 20px; color: #8b0000; margin-bottom: 2px;
+  }
+  .login-box .login-logo .login-sub {
+    font-size: 12px; color: var(--text-muted);
+  }
+  .login-box .form-group { margin-bottom: 16px; }
+  .login-box .btn { width: 100%; justify-content: center; padding: 10px; font-size: 14px; }
+  .login-error {
+    background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d;
+    padding: 8px 12px; border-radius: 6px; font-size: 13px;
+    margin-bottom: 14px; display: none;
+  }
+  .change-pw-hint {
+    background: #fffbeb; border: 1px solid #fcd34d; color: #78350f;
+    padding: 8px 12px; border-radius: 6px; font-size: 12px;
+    margin-bottom: 14px; line-height: 1.4;
+  }
+
   /* ---- Footer ---- */
   .app-footer {
     text-align: center; padding: 16px;
@@ -484,6 +517,57 @@
 </head>
 <body>
 
+<!-- ===== LOGIN OVERLAY ===== -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">
+      <h2>Quehenberger</h2>
+      <div style="font-size:10px; letter-spacing:1.5px; color:#8b0000; margin-bottom:4px;">logistics <span style="color:#c41e3a;">&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;</span></div>
+      <div class="login-sub">Lobster Scheduler Manager</div>
+    </div>
+
+    <!-- Login-Formular -->
+    <div id="login-form">
+      <div class="login-error" id="login-error"></div>
+      <div class="form-group">
+        <label>Benutzername</label>
+        <input type="text" id="login-user" placeholder="Benutzername" autocomplete="username"
+               onkeydown="if(event.key==='Enter') doLogin()" autofocus />
+      </div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <div class="pw-wrap">
+          <input type="password" id="login-pass" placeholder="Passwort" autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter') doLogin()" />
+          <span class="pw-toggle" onclick="togglePw('login-pass', this)">&#128065;</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Anmelden</button>
+    </div>
+
+    <!-- Passwort-Aenderung (nach erstem Login) -->
+    <div id="change-pw-form" style="display:none;">
+      <div class="change-pw-hint">Dein Passwort muss beim ersten Login ge&auml;ndert werden.</div>
+      <div class="login-error" id="change-pw-error"></div>
+      <div class="form-group">
+        <label>Neues Passwort</label>
+        <input type="password" id="change-pw-new" placeholder="Neues Passwort"
+               onkeydown="if(event.key==='Enter') doChangePassword()" />
+      </div>
+      <div class="form-group">
+        <label>Neues Passwort wiederholen</label>
+        <input type="password" id="change-pw-confirm" placeholder="Wiederholen"
+               onkeydown="if(event.key==='Enter') doChangePassword()" />
+      </div>
+      <button class="btn btn-primary" onclick="doChangePassword()">Passwort &auml;ndern</button>
+    </div>
+
+    <div id="login-api-warning" style="display:none; margin-top:16px; text-align:center; font-size:12px; color:var(--error);">
+      API nicht erreichbar. Bitte <code>Start-SchedulerManagerAPI.ps1</code> starten.
+    </div>
+  </div>
+</div>
+
 <!-- ===== HEADER ===== -->
 <header class="app-header">
   <!-- Quehenberger Logo Block -->
@@ -500,13 +584,14 @@
   </div>
 
   <!-- User Badge -->
-  <div class="user-badge" id="user-badge" onclick="switchTab('settings');document.getElementById('s-currentUser').focus();">
+  <div class="user-badge" id="user-badge">
     <div class="user-avatar" id="user-avatar">?</div>
     <div>
-      <div id="user-display-name" style="font-size:12px; font-weight:600; line-height:1.2;">Nicht angemeldet</div>
-      <div id="user-display-company" style="font-size:10px; opacity:.65; line-height:1.2;">Augustin Quehenberger&hellip;</div>
+      <div id="user-display-name" style="font-size:12px; font-weight:600; line-height:1.2;"></div>
+      <div id="user-display-company" style="font-size:10px; opacity:.65; line-height:1.2;"></div>
     </div>
   </div>
+  <div style="cursor:pointer; padding:5px 8px; font-size:18px; opacity:.7; transition:opacity .2s;" onclick="doLogout()" title="Abmelden">&#9211;</div>
 
   <!-- API Status -->
   <div class="api-status-badge" id="api-badge" title="Lokale API f&uuml;r Auto-Modus. Start: powershell -File Start-SchedulerManagerAPI.ps1">
@@ -983,24 +1068,68 @@
 <div class="tab-content" id="tab-settings">
   <div class="settings-grid">
 
-    <!-- Benutzer -->
+    <!-- Eigenes Passwort aendern -->
     <div class="card" style="grid-column:1/-1;">
-      <div class="card-header"><div class="card-header-left"><span>&#128100;</span><h3>Benutzer</h3></div></div>
+      <div class="card-header"><div class="card-header-left"><span>&#128274;</span><h3>Mein Passwort &auml;ndern</h3></div></div>
       <div class="card-body">
         <div class="form-grid">
           <div class="form-group">
-            <label>Anzeigename</label>
-            <input type="text" id="s-currentUser" placeholder="z.B. Matthias Haas" />
-            <span class="form-hint">Wird im Header und bei der Task-Erstellung als Author verwendet.</span>
+            <label>Altes Passwort</label>
+            <input type="password" id="s-old-pw" placeholder="Aktuelles Passwort" />
           </div>
           <div class="form-group">
-            <label>Unternehmen / Abteilung</label>
-            <input type="text" id="s-currentCompany" placeholder="z.B. Augustin Quehenberger Group" />
+            <label>Neues Passwort</label>
+            <input type="password" id="s-new-pw" placeholder="Neues Passwort" />
           </div>
         </div>
         <div class="actions" style="margin-top:12px;">
-          <button class="btn btn-primary btn-sm" onclick="saveUserSettings()">&#128190; Speichern</button>
+          <button class="btn btn-primary btn-sm" onclick="settingsChangePassword()">&#128190; Passwort &auml;ndern</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Benutzerverwaltung (nur Admin) -->
+    <div class="card" style="grid-column:1/-1;" id="admin-user-mgmt">
+      <div class="card-header"><div class="card-header-left"><span>&#128101;</span><h3>Benutzerverwaltung</h3></div></div>
+      <div class="card-body">
+        <div style="overflow-x:auto;">
+          <table id="users-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Benutzername</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Anzeigename</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Unternehmen</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Rolle</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:120px;"></th>
+              </tr>
+            </thead>
+            <tbody id="users-rows"></tbody>
+          </table>
+        </div>
+        <div class="section-label" style="margin-top:16px;">Neuen Benutzer anlegen</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Benutzername</label>
+            <input type="text" id="new-user-name" placeholder="z.B. mhaas" onkeydown="if(event.key==='Enter') addNewUser()" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Anzeigename</label>
+            <input type="text" id="new-user-display" placeholder="z.B. Matthias Haas" onkeydown="if(event.key==='Enter') addNewUser()" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Unternehmen</label>
+            <input type="text" id="new-user-company" placeholder="z.B. AQG" onkeydown="if(event.key==='Enter') addNewUser()" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Rolle</label>
+            <select id="new-user-role" style="width:100%;">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addNewUser()">+ Anlegen</button>
+        </div>
+        <span class="form-hint" style="margin-top:6px;display:block;">Initiales Passwort = Benutzername. Der User muss es beim ersten Login &auml;ndern.</span>
       </div>
     </div>
 
@@ -2052,10 +2181,9 @@ function renderSettingsTab() {
   document.getElementById('s-mailFrom').value    = s.mailFrom    || '';
   document.getElementById('s-mailTo').value      = s.mailTo      || '';
   document.getElementById('s-defaultUser').value  = s.defaultUser    || '';
-  document.getElementById('s-currentUser').value   = s.currentUser    || '';
-  document.getElementById('s-currentCompany').value = s.currentCompany || '';
   renderMappingTable(s.scriptMappings || []);
   updateUserBadge();
+  loadUsersTable();
 }
 
 function renderMappingTable(mappings) {
@@ -2167,26 +2295,16 @@ function saveDefaultSettings() {
   showToast('Standard-Werte gespeichert');
 }
 
-function saveUserSettings() {
-  const s = loadSettings();
-  s.currentUser    = document.getElementById('s-currentUser').value.trim();
-  s.currentCompany = document.getElementById('s-currentCompany').value.trim();
-  saveSettings(s);
-  updateUserBadge();
-  showToast('Benutzer gespeichert');
-}
-
 function updateUserBadge() {
   const s    = loadSettings();
   const name = s.currentUser || '';
   const comp = s.currentCompany || '';
-  const nameEl = document.getElementById('user-display-name');
-  const compEl = document.getElementById('user-display-company');
+  const nameEl   = document.getElementById('user-display-name');
+  const compEl   = document.getElementById('user-display-company');
   const avatarEl = document.getElementById('user-avatar');
 
   if (name) {
     nameEl.textContent = name;
-    // Initialen aus Vor- und Nachname
     const parts = name.split(/\s+/);
     const initials = parts.length >= 2
       ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
@@ -2198,7 +2316,7 @@ function updateUserBadge() {
     avatarEl.textContent = '?';
     avatarEl.classList.remove('online');
   }
-  compEl.textContent = comp || 'Klicken zum Einrichten';
+  compEl.textContent = comp || '';
 }
 
 // ============================================================
@@ -2310,7 +2428,273 @@ function setDefaultStartTime() {
     `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth()+1)}-${pad(tomorrow.getDate())}T02:00`;
 }
 
-function init() {
+// ============================================================
+// AUTH — Session Token
+// ============================================================
+const SESSION_TOKEN_KEY = 'lsm_session_token';
+let currentSession = null; // { username, displayName, company, role }
+
+function getToken()      { return localStorage.getItem(SESSION_TOKEN_KEY) || ''; }
+function setToken(t)     { localStorage.setItem(SESSION_TOKEN_KEY, t); }
+function clearToken()    { localStorage.removeItem(SESSION_TOKEN_KEY); }
+
+function authHeaders()   { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }; }
+
+async function checkSession() {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(API_URL + '/session', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    if (data.ok) {
+      currentSession = data;
+      return true;
+    }
+  } catch { /* API offline */ }
+  clearToken();
+  return false;
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-form').style.display = '';
+  document.getElementById('change-pw-form').style.display = 'none';
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+
+  // Check ob API erreichbar
+  fetch(API_URL + '/ping', { signal: AbortSignal.timeout(2000) })
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('login-api-warning').style.display = d.ok ? 'none' : 'block';
+    })
+    .catch(() => {
+      document.getElementById('login-api-warning').style.display = 'block';
+    });
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-btn');
+
+  if (!username || !password) {
+    errEl.textContent = 'Benutzername und Passwort eingeben';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Anmelden...';
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(API_URL + '/login', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      errEl.textContent = data.message || 'Login fehlgeschlagen';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Anmelden';
+      return;
+    }
+
+    setToken(data.token);
+    currentSession = { username: data.username, displayName: data.displayName, company: data.company, role: data.role };
+
+    if (data.mustChangePassword) {
+      // Passwort-Aenderung erzwingen
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('change-pw-form').style.display = '';
+      document.getElementById('change-pw-new').focus();
+      btn.disabled = false;
+      btn.textContent = 'Anmelden';
+      return;
+    }
+
+    onLoginSuccess();
+  } catch (e) {
+    errEl.textContent = 'API nicht erreichbar: ' + e.message;
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Anmelden';
+}
+
+async function doChangePassword() {
+  const pw1   = document.getElementById('change-pw-new').value;
+  const pw2   = document.getElementById('change-pw-confirm').value;
+  const errEl = document.getElementById('change-pw-error');
+
+  if (!pw1 || pw1.length < 4) {
+    errEl.textContent = 'Passwort muss mindestens 4 Zeichen haben';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (pw1 !== pw2) {
+    errEl.textContent = 'Passwoerter stimmen nicht ueberein';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const oldPassword = document.getElementById('login-pass').value;
+    const res = await fetch(API_URL + '/change-password', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ oldPassword, newPassword: pw1 })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.message;
+      errEl.style.display = 'block';
+      return;
+    }
+    onLoginSuccess();
+  } catch (e) {
+    errEl.textContent = 'Fehler: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function onLoginSuccess() {
+  hideLogin();
+  // Session-Daten in Settings uebernehmen
+  const s = loadSettings();
+  s.currentUser    = currentSession.displayName || currentSession.username;
+  s.currentCompany = currentSession.company || s.currentCompany || '';
+  saveSettings(s);
+  initApp();
+}
+
+async function doLogout() {
+  try {
+    await fetch(API_URL + '/logout', { method: 'POST', headers: authHeaders() });
+  } catch { /* ignore */ }
+  clearToken();
+  currentSession = null;
+  showLogin();
+}
+
+// ============================================================
+// USER MANAGEMENT (Settings Tab)
+// ============================================================
+async function loadUsersTable() {
+  const container = document.getElementById('admin-user-mgmt');
+  if (!currentSession || currentSession.role !== 'admin') {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = '';
+
+  try {
+    const res = await fetch(API_URL + '/users', { headers: authHeaders() });
+    const data = await res.json();
+    if (!data.ok) return;
+
+    const tbody = document.getElementById('users-rows');
+    tbody.innerHTML = data.users.map(u => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 10px; font-weight:600;">${u.username}</td>
+        <td style="padding:7px 10px;">${u.displayName || ''}</td>
+        <td style="padding:7px 10px;">${u.company || ''}</td>
+        <td style="padding:7px 10px;"><span class="badge ${u.role==='admin'?'badge-warn':'badge-ok'}">${u.role}</span></td>
+        <td style="padding:7px 10px;text-align:center;white-space:nowrap;">
+          <span style="cursor:pointer;color:var(--accent);font-size:14px;margin-right:6px;" onclick="resetUserPassword('${u.username}')" title="Passwort zuruecksetzen">&#128273;</span>
+          ${u.username !== currentSession.username ? `<span style="cursor:pointer;color:var(--error);font-size:16px;" onclick="deleteUser('${u.username}')" title="Loeschen">&times;</span>` : ''}
+        </td>
+      </tr>`).join('');
+  } catch { /* API offline */ }
+}
+
+async function addNewUser() {
+  const username    = document.getElementById('new-user-name').value.trim();
+  const displayName = document.getElementById('new-user-display').value.trim();
+  const company     = document.getElementById('new-user-company').value.trim();
+  const role        = document.getElementById('new-user-role').value;
+
+  if (!username) { showToast('Benutzername eingeben'); return; }
+
+  try {
+    const res = await fetch(API_URL + '/users', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ username, password: username, displayName: displayName || username, company, role })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message);
+      document.getElementById('new-user-name').value = '';
+      document.getElementById('new-user-display').value = '';
+      document.getElementById('new-user-company').value = '';
+      loadUsersTable();
+    } else {
+      showToast(data.message);
+    }
+  } catch (e) { showToast('Fehler: ' + e.message); }
+}
+
+async function deleteUser(username) {
+  if (!confirm(`Benutzer '${username}' wirklich loeschen?`)) return;
+  try {
+    const res = await fetch(API_URL + '/users/' + username, { method: 'DELETE', headers: authHeaders() });
+    const data = await res.json();
+    showToast(data.message);
+    loadUsersTable();
+  } catch (e) { showToast('Fehler: ' + e.message); }
+}
+
+async function resetUserPassword(username) {
+  const newPw = prompt(`Neues Passwort fuer '${username}':`);
+  if (!newPw) return;
+  try {
+    const res = await fetch(API_URL + '/reset-password', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ username, newPassword: newPw })
+    });
+    const data = await res.json();
+    showToast(data.message);
+  } catch (e) { showToast('Fehler: ' + e.message); }
+}
+
+async function settingsChangePassword() {
+  const oldPw = document.getElementById('s-old-pw').value;
+  const newPw = document.getElementById('s-new-pw').value;
+  if (!oldPw || !newPw) { showToast('Beide Felder ausfuellen'); return; }
+  if (newPw.length < 4) { showToast('Mindestens 4 Zeichen'); return; }
+
+  try {
+    const res = await fetch(API_URL + '/change-password', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw })
+    });
+    const data = await res.json();
+    showToast(data.message);
+    if (data.ok) {
+      document.getElementById('s-old-pw').value = '';
+      document.getElementById('s-new-pw').value = '';
+    }
+  } catch (e) { showToast('Fehler: ' + e.message); }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initApp() {
   const s = loadSettings();
   document.getElementById('f-userId').value          = s.currentUser   || '';
   document.getElementById('f-remoteUser').value     = s.defaultUser   || '';
@@ -2320,11 +2704,25 @@ function init() {
   setDefaultStartTime();
   onInstanceTypeChange();
   renderStepProgress();
-
-  // Update task name when start time changes
   document.getElementById('f-startTime').addEventListener('change', updateDetectedScript);
   updateUserBadge();
   checkApiAvailable();
+}
+
+async function init() {
+  // Pruefen ob bereits eingeloggt
+  const loggedIn = await checkSession();
+  if (loggedIn) {
+    hideLogin();
+    // Session-Daten in Settings uebernehmen
+    const s = loadSettings();
+    s.currentUser    = currentSession.displayName || currentSession.username;
+    s.currentCompany = currentSession.company || s.currentCompany || '';
+    saveSettings(s);
+    initApp();
+  } else {
+    showLogin();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -2466,7 +2864,7 @@ async function autoRunAll() {
 
     const r0 = await fetch(API_URL + '/check-script', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         host: host, user: f.remoteUser, password: f.remotePassword,
         scriptPath: f.scriptPath, scriptName: f.scriptName,
@@ -2496,7 +2894,7 @@ async function autoRunAll() {
 
     const r1 = await fetch(API_URL + '/create-task', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         host: host, user: f.remoteUser, password: f.remotePassword,
         taskName: f.taskName, taskPath: taskPath,
@@ -2518,7 +2916,7 @@ async function autoRunAll() {
 
     const r2 = await fetch(API_URL + '/verify-task', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         host: host, user: f.remoteUser, password: f.remotePassword,
         taskName: f.taskName, taskPath: taskPath,
@@ -2546,7 +2944,7 @@ async function autoRunAll() {
 
       const r3 = await fetch(API_URL + '/send-mail', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           smtpServer: s.smtpServer, from: s.mailFrom,
           to: mailTo, subject: subject, body: body,
@@ -2589,7 +2987,7 @@ async function autoRunStep3(log) {
 
   const res = await fetch(API_URL + '/check-script', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       host:           host,
       user:           f.remoteUser,
@@ -2635,7 +3033,7 @@ async function autoRunStep4(log) {
 
   const res = await fetch(API_URL + '/create-task', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       host:       host,
       user:       f.remoteUser,
@@ -2669,7 +3067,7 @@ async function autoRunStep5(log) {
 
   const res = await fetch(API_URL + '/verify-task', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       host:     host,
       user:     f.remoteUser,
@@ -2712,7 +3110,7 @@ async function autoRunStep6(log) {
 
   const res = await fetch(API_URL + '/send-mail', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       smtpServer: s.smtpServer,
       from:       s.mailFrom,
