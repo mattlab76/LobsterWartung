@@ -11,7 +11,7 @@
     [int]    $MaxWaitSeconds      = 300,
     [int]    $PollIntervalSeconds = 15
 )
-& "$PSScriptRoot\..\Invoke-LobsterShutdown.ps1" `
+& "$PSScriptRoot\..\Stop-LobsterService.ps1" `
     -WebserviceUrl        $WebserviceUrl `
     -WrapperLogPath       $WrapperLogPath `
     -MailTo               $MailTo `

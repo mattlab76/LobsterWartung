@@ -19,28 +19,28 @@
 
 .NOTES
     Deployment:
-        Backend-Host: z.B. C:\LobsterMaintenance\Invoke-LobsterShutdown.ps1
-        DMZ-Host:     z.B. C:\LobsterMaintenance\Invoke-LobsterShutdown.ps1
+        Backend-Host: z.B. C:\LobsterMaintenance\Stop-LobsterService.ps1
+        DMZ-Host:     z.B. C:\LobsterMaintenance\Stop-LobsterService.ps1
 
     Der Scheduled Task wird vom Lobster Scheduler Manager angelegt und
     ruft dieses Skript auf dem Backend-Host mit allen Parametern auf.
 
 .EXAMPLE
     # Standalone / DMZ-Modus (direkt auf einem Host ausfuehren):
-    .\Invoke-LobsterShutdown.ps1 `
+    .\Stop-LobsterService.ps1 `
         -ServiceName    "Lobster Integration Server" `
         -WrapperLogPath "D:\Lobster\IS\logs\wrapper.log"
 
 .EXAMPLE
     # Backend-Modus (Orchestrator) – startet DMZ-Shutdown, dann lokal, dann Mail:
-    .\Invoke-LobsterShutdown.ps1 `
+    .\Stop-LobsterService.ps1 `
         -ServiceName       "Lobster Integration Server" `
         -WrapperLogPath    "D:\Lobster\IS\logs\wrapper.log" `
         -DmzHost           "dmz-server01" `
         -DmzCredential     (Get-Credential) `
         -DmzServiceName    "Lobster Integration Server" `
         -DmzWrapperLogPath "D:\Lobster\IS\logs\wrapper.log" `
-        -DmzScriptPath     "C:\LobsterMaintenance\Invoke-LobsterShutdown.ps1" `
+        -DmzScriptPath     "C:\LobsterMaintenance\Stop-LobsterService.ps1" `
         -MailTo            "admin@firma.local" `
         -SmtpServer        "smtp.firma.local"
 #>
@@ -62,7 +62,7 @@ param(
     [string]$DmzWrapperLogPath  = '',
 
     # Pfad zu diesem Skript auf dem DMZ-Host
-    [string]$DmzScriptPath      = 'C:\LobsterMaintenance\Invoke-LobsterShutdown.ps1',
+    [string]$DmzScriptPath      = 'C:\LobsterMaintenance\Stop-LobsterService.ps1',
 
     # ── Mail-Benachrichtigung (nur im Orchestrator-Modus) ────────────────────
     [string]$MailTo      = '',

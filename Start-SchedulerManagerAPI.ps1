@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # Start-SchedulerManagerAPI.ps1
 # Lokaler HTTP-API-Backend für LobsterSchedulerManager.html
 #
@@ -150,7 +150,7 @@ try {
                         -ComputerName $b.host `
                         -Credential   $cred `
                         -ScriptBlock  {
-                            param($name, $path, $script, $start)
+                            param($name, $path, $script, $start, $author)
 
                             $action = New-ScheduledTaskAction `
                                 -Execute  'powershell.exe' `
@@ -161,16 +161,23 @@ try {
                             $settings = New-ScheduledTaskSettingsSet `
                                 -ExecutionTimeLimit (New-TimeSpan -Hours 3) `
                                 -MultipleInstances  IgnoreNew `
-                                -StartWhenAvailable $true
+                                -StartWhenAvailable
 
-                            $task = Register-ScheduledTask `
+                            Register-ScheduledTask `
                                 -TaskName $name `
                                 -TaskPath $path `
                                 -Action   $action `
                                 -Trigger  $trigger `
                                 -Settings $settings `
                                 -RunLevel Highest `
-                                -Force
+                                -Force | Out-Null
+
+                            # Author und Created per XML-Patch setzen
+                            $xml = [xml](Export-ScheduledTask -TaskName $name -TaskPath $path)
+                            $xml.Task.RegistrationInfo.Author = $author
+                            $xml.Task.RegistrationInfo.Date   = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+                            Unregister-ScheduledTask -TaskName $name -TaskPath $path -Confirm:$false
+                            $task = Register-ScheduledTask -TaskName $name -TaskPath $path -Xml $xml.OuterXml -Force
 
                             [PSCustomObject]@{
                                 TaskName = $task.TaskName
@@ -178,7 +185,7 @@ try {
                                 State    = $task.State.ToString()
                             }
                         } `
-                        -ArgumentList $b.taskName, $b.taskPath, $b.scriptFull, $b.startTime
+                        -ArgumentList $b.taskName, $b.taskPath, $b.scriptFull, $b.startTime, $b.user
 
                     Send-JsonResponse -Response $resp -Data @{
                         ok       = $true

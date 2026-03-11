@@ -1,7 +1,7 @@
 #Requires -Version 5.1
-# Stop-BackendAndDmz-Webservice.ps1
-# Lobster-Dienst auf DMZ-Host (Windows-Dienst) und Backend-Host via Lobster-Webservice stoppen.
-# Laeuft auf dem Backend-Host.
+# Stop-BackendViaWebserviceAndDmzService.ps1
+# Backend-Dienst via Lobster-Webservice stoppen + DMZ-Dienst via Windows-Dienst stoppen.
+# Laeuft auf dem Backend-Host. Hinweis: DMZ kann nicht via Webservice gestoppt werden.
 [CmdletBinding()] param(
     [Parameter(Mandatory=$true)] [string]       $BackendWebserviceUrl,
     [Parameter(Mandatory=$true)] [string]       $BackendWrapperLogPath,
@@ -16,7 +16,7 @@
     [int]    $MaxWaitSeconds   = 300,
     [int]    $PollIntervalSeconds = 15
 )
-& "$PSScriptRoot\..\Invoke-LobsterShutdown.ps1" `
+& "$PSScriptRoot\..\Stop-LobsterService.ps1" `
     -WebserviceUrl        $BackendWebserviceUrl `
     -WrapperLogPath       $BackendWrapperLogPath `
     -DmzHost              $DmzHost `
