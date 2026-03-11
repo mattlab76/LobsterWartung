@@ -147,8 +147,8 @@ try {
         # CORS Preflight
         if ($req.HttpMethod -eq 'OPTIONS') {
             $resp.Headers.Add('Access-Control-Allow-Origin',  '*')
-            $resp.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            $resp.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+            $resp.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+            $resp.Headers.Add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             $resp.StatusCode = 204
             $resp.Close()
             continue
@@ -503,7 +503,7 @@ try {
                             }
                             break
                         }
-                        $newUser = @{
+                        $newUser = [PSCustomObject]@{
                             username           = $b.username
                             displayName        = if ($b.displayName) { $b.displayName } else { $b.username }
                             company            = if ($b.company) { $b.company } else { '' }
@@ -511,7 +511,7 @@ try {
                             passwordHash       = Get-PasswordHash $b.password
                             mustChangePassword = $true
                         }
-                        $users += $newUser
+                        $users = @($users) + @($newUser)
                         Save-UsersDb $users
                         Send-JsonResponse -Response $resp -Data @{ ok = $true; message = "Benutzer '$($b.username)' angelegt" }
                         Write-Log "  User angelegt: $($b.username)" -Color Green

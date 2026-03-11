@@ -2,124 +2,189 @@
 
 Webbasiertes Tool zur automatisierten Wartungssteuerung von Lobster-Servern via Windows Task Scheduler.
 
-## Komponenten
+## Projektstruktur
 
-| Komponente | Beschreibung |
-|---|---|
-| `LobsterSchedulerManager.html` | Single-Page GUI (im Browser oeffnen) |
-| `Start-SchedulerManagerAPI.ps1` | Lokale PowerShell REST-API (Port 8765) fuer den Auto-Modus |
-| `deployment/` | Scripts fuer die Remote-Server |
+```
+LobsterWartung/
+  LobsterSchedulerManager.html        GUI (im Browser oeffnen)
+  Start-SchedulerManagerAPI.ps1        Lokale PowerShell REST-API (Port 8765)
+  users.json                           Benutzerdaten (wird automatisch angelegt)
+  deployment/
+    Stop-LobsterService.ps1            Kern-Script: Dienst-Stopp + Log-Pruefung + Mail
+    scripts/
+      Stop-Backend.ps1                 Stoppt Backend-Dienst (Windows-Service)
+      Stop-Dmz.ps1                     Stoppt DMZ-Dienst (laeuft auf DMZ-Host)
+      Stop-BackendAndDmz.ps1           Stoppt DMZ + Backend (orchestriert, Windows-Dienste)
+      Stop-BackendViaWebserviceAndDmzService.ps1
+                                       Stoppt Backend via REST-API, DMZ via Windows-Dienst
+      Stop-Backend-Webservice.ps1      Stoppt Backend via Lobster-Webservice-URL
+      Start-Backend.ps1                (TODO) Backend starten
+      Start-BackendAndDmz.ps1          (TODO) Backend + DMZ starten
+      Start-Dmz.ps1                    (TODO) DMZ starten
+      Restart-Backend.ps1              (TODO) Backend neustarten
+      Restart-BackendAndDmz.ps1        (TODO) Backend + DMZ neustarten
+      Restart-Backend-Webservice.ps1   (TODO) Backend via Webservice neustarten
+      Restart-BackendAndDmz-Webservice.ps1
+                                       (TODO) Backend (Webservice) + DMZ neustarten
+      Restart-Dmz.ps1                  (TODO) DMZ neustarten
+    shared/
+      Send-MaintenanceMail.ps1         Mail-Helper (Send-MaintenanceMail, New-MaintenanceMailBody)
+```
 
 ## Schnellstart
 
-### 1. GUI oeffnen
-
-`LobsterSchedulerManager.html` direkt im Browser oeffnen. Alle Einstellungen werden im Browser (localStorage) gespeichert.
-
-### 2. API starten (optional, fuer Auto-Modus)
+### 1. API starten
 
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser   # einmalig
 powershell -ExecutionPolicy Bypass -File Start-SchedulerManagerAPI.ps1
 ```
 
-Die API laeuft auf `http://localhost:8765` und wird im Header der GUI als "API Online" angezeigt.
+Beim ersten Start wird `users.json` mit dem Default-User **admin** (Passwort: **admin**) angelegt.
 
-**Beenden:** Im Konsolenfenster `CTRL+C` druecken oder Fenster schliessen.
+**Beenden:** `CTRL+C` im Konsolenfenster oder Fenster schliessen.
 
-### 3. Ersteinrichtung in der GUI
+### 2. GUI oeffnen
 
-1. **Einstellungen** Tab oeffnen
-2. **Benutzer**: Name und Unternehmen eintragen
-3. **Backend Hosts / DMZ Hosts**: Server-Hostnamen hinzufuegen
-4. **Mail-Einstellungen**: SMTP-Server und Absender konfigurieren
-5. **Standard-Werte**: Remote-Benutzername (DOMAIN\User) setzen
+`LobsterSchedulerManager.html` im Browser oeffnen und mit **admin / admin** anmelden.
+Beim ersten Login muss das Passwort geaendert werden.
+
+### 3. Ersteinrichtung
+
+1. **Einstellungen** > **Benutzerverwaltung**: Weitere Benutzer anlegen (nur als Admin)
+2. **Backend Hosts / DMZ Hosts**: Server-Hostnamen hinzufuegen
+3. **Mail-Einstellungen**: SMTP-Server und Absender konfigurieren
+4. **Standard-Werte**: Remote-Benutzername (DOMAIN\User) und PS-Skript Root-Pfad setzen
+
+## Benutzerverwaltung
+
+Die Authentifizierung erfolgt ueber die API (`users.json`, SHA256-Passwort-Hashing).
+
+| Funktion | Zugriff |
+|---|---|
+| Login / Logout | Alle |
+| Eigenes Passwort aendern | Alle (unter Einstellungen) |
+| Benutzer anlegen / loeschen | Nur Admin |
+| Passwort zuruecksetzen | Nur Admin |
+
+Neue Benutzer erhalten ihr **Benutzername als initiales Passwort** und muessen es beim ersten Login aendern.
 
 ## Deployment auf den Servern
 
-Die Scripts muessen auf jedem Lobster-Server bereitgestellt werden.
-
 ### Ordnerstruktur
 
-Waehle einen Root-Ordner auf dem Server (z.B. `D:\EDI\maintenance-scripts`) und kopiere die Ordner `scripts\` und `shared\` hinein:
+Waehle einen Root-Ordner auf dem Server (z.B. `D:\EDI\maintenance-scripts`) und kopiere die drei Unterverzeichnisse hinein:
 
 ```
-D:\EDI\maintenance-scripts\          <-- Root-Ordner (in GUI als "PS-Skript Root-Pfad" angeben)
-  +-- scripts\
-  |     Stop-Backend.ps1
-  |     Stop-BackendAndDmz.ps1
-  |     Stop-BackendViaWebserviceAndDmzService.ps1
-  |     Stop-Dmz.ps1
-  |     Start-Backend.ps1
-  |     Start-BackendAndDmz.ps1
-  |     Start-Dmz.ps1
-  |     Restart-Backend.ps1
-  |     Restart-BackendAndDmz.ps1
-  |     ...
-  +-- shared\
-  |     Send-MaintenanceMail.ps1
-  +-- Stop-LobsterService.ps1        <-- Kern-Script (wird von scripts\*.ps1 aufgerufen)
+D:\EDI\maintenance-scripts\             <-- Root-Pfad (in GUI angeben)
+  Stop-LobsterService.ps1              Kern-Script
+  scripts\
+    Stop-Backend.ps1
+    Stop-BackendAndDmz.ps1
+    Stop-Dmz.ps1
+    ...
+  shared\
+    Send-MaintenanceMail.ps1
 ```
 
-### Kopierbefehl (von diesem Repo)
+### Kopierbefehl
 
 ```powershell
 $ziel = "\\SERVERNAME\D$\EDI\maintenance-scripts"
 
-# Scripts-Ordner
+# Alles auf einmal
+robocopy "deployment" "$ziel" /E /MIR
+```
+
+Oder einzeln:
+
+```powershell
 robocopy "deployment\scripts" "$ziel\scripts" /MIR
-
-# Shared-Ordner
-robocopy "deployment\shared" "$ziel\shared" /MIR
-
-# Kern-Script
+robocopy "deployment\shared"  "$ziel\shared"  /MIR
 Copy-Item "deployment\Stop-LobsterService.ps1" "$ziel\Stop-LobsterService.ps1"
 ```
 
-## Ausfuehrungsmodi
+## PowerShell Scripts im Detail
 
-Im Schritt 2 (Zusammenfassung) stehen drei Modi zur Wahl:
+### Stop-LobsterService.ps1 (Kern-Script)
+
+Zentrale Logik fuer den Dienst-Stopp. Wird von allen `scripts\Stop-*.ps1` Wrappern aufgerufen.
+
+**Funktionsweise:**
+1. Setzt den Dienst-Starttyp auf **Manual** (verhindert automatischen Neustart)
+2. Stoppt den Windows-Dienst
+3. Pollt die `wrapper.log` auf das Muster **"Wrapper Stopped"** (konfigurierbare Wartezeit)
+4. Validiert den Zeitstempel (innerhalb +/-5 Min Toleranz)
+5. Prueft, ob der Dienst danach wieder gestartet wurde (Fehlerfall)
+6. Sendet optional eine HTML-Mail mit dem Ergebnis
+
+**Orchestrator-Modus** (Backend + DMZ):
+- Stoppt zuerst den DMZ-Dienst remote via `Invoke-Command`
+- Dann den lokalen Backend-Dienst
+- Sendet eine kombinierte Mail mit allen Ergebnissen
+
+### Wrapper-Scripts (deployment/scripts/)
+
+Jedes Wrapper-Script setzt die richtigen Parameter und delegiert an `Stop-LobsterService.ps1`:
+
+| Script | Beschreibung | Dienst-Stop via |
+|---|---|---|
+| `Stop-Backend.ps1` | Nur Backend stoppen | Windows-Dienst |
+| `Stop-Dmz.ps1` | Nur DMZ stoppen (laeuft lokal auf DMZ-Host) | Windows-Dienst |
+| `Stop-BackendAndDmz.ps1` | DMZ remote stoppen, dann Backend lokal | Windows-Dienst + Invoke-Command |
+| `Stop-BackendViaWebserviceAndDmzService.ps1` | Backend via REST-API, DMZ via Dienst | Webservice-URL + Windows-Dienst |
+| `Stop-Backend-Webservice.ps1` | Nur Backend via Webservice-URL | Webservice-URL |
+
+### Send-MaintenanceMail.ps1 (shared/)
+
+Stellt zwei Funktionen bereit:
+- **`Send-MaintenanceMail`** -- Sendet eine Mail via SMTP
+- **`New-MaintenanceMailBody`** -- Generiert einen HTML-Body mit Ergebnis-Tabelle (Schritte + Status)
+
+### Start/Restart-Scripts (TODO)
+
+Die Start- und Restart-Scripts sind als Platzhalter angelegt. Sie werfen aktuell einen Fehler:
+`Invoke-LobsterStartup.ps1 fehlt.`
+
+Sobald `Start-LobsterService.ps1` (analog zu `Stop-LobsterService.ps1`) implementiert ist,
+koennen diese Scripts aktiviert werden.
+
+## API-Endpunkte
+
+| Methode | Pfad | Beschreibung |
+|---|---|---|
+| GET | `/ping` | Health-Check |
+| POST | `/login` | Anmeldung (username, password) |
+| POST | `/logout` | Abmeldung |
+| GET | `/session` | Aktuelle Session pruefen |
+| POST | `/change-password` | Eigenes Passwort aendern |
+| GET | `/users` | Benutzerliste (nur Admin) |
+| POST | `/users` | Benutzer anlegen (nur Admin) |
+| DELETE | `/users/{name}` | Benutzer loeschen (nur Admin) |
+| POST | `/reset-password` | Passwort zuruecksetzen (nur Admin) |
+| POST | `/check-script` | Prueft ob Script auf Remote-Host existiert |
+| POST | `/create-task` | Scheduled Task auf Remote-Host erstellen |
+| POST | `/verify-task` | Scheduled Task pruefen |
+| POST | `/send-mail` | Mail senden |
+
+## Ausfuehrungsmodi
 
 | Modus | Beschreibung |
 |---|---|
-| **Automatisch** | API erstellt Task, prueft ihn und sendet Mail -- alles vollautomatisch. Setzt laufende API voraus. |
-| **Manuell** | Zeigt Programm und Argumente an, die man im Task Scheduler (taskschd.msc) als Aktion hinterlegt. |
-| **Schritt fuer Schritt** | Jeden Schritt einzeln pruefen und bestaetigen (mit oder ohne API). |
-
-### Manueller Modus -- Task Scheduler Aktion
-
-Wenn der manuelle Modus gewaehlt wird, zeigt die GUI:
-
-- **Programm/Skript:** `powershell.exe`
-- **Argumente:** `-ExecutionPolicy Bypass -NonInteractive -File "D:\EDI\maintenance-scripts\scripts\Stop-Backend.ps1" -MaxWaitSeconds 300 -PollIntervalSeconds 15`
-
-Diese Werte im Windows Task Scheduler unter **Aktion** > **Programm/Script** und **Argumente hinzufuegen** eintragen.
-
-## Script-Zuordnungen
-
-Die GUI ordnet automatisch das passende Script anhand von Wartungstyp und Instanz-Typ zu. Die Zuordnungen koennen unter **Einstellungen** > **Script-Zuordnungen** angepasst werden.
-
-Standard-Zuordnungen:
-
-| Wartungstyp | Instanz Typ | Script |
-|---|---|---|
-| Stop-Lobster | Backend | `scripts\Stop-Backend.ps1` |
-| Stop-Lobster | Backend und DMZ | `scripts\Stop-BackendAndDmz.ps1` |
-| Stop-Lobster | Backend und DMZ (via Webservice) | `scripts\Stop-BackendViaWebserviceAndDmzService.ps1` |
-| Stop-Lobster | DMZ | `scripts\Stop-Dmz.ps1` |
-| Start-Lobster | Backend | `scripts\Start-Backend.ps1` |
-| Start-Lobster | Backend und DMZ | `scripts\Start-BackendAndDmz.ps1` |
-| ... | ... | ... |
+| **Automatisch** | API erstellt Task, prueft ihn und sendet Mail -- vollautomatisch. API muss laufen. |
+| **Manuell** | Zeigt Programm + Argumente, die man im Task Scheduler als Aktion hinterlegt. |
+| **Schritt fuer Schritt** | Jeden Schritt einzeln pruefen und bestaetigen. |
 
 ## Voraussetzungen
 
-- **Client (GUI + API):** Windows 10/11, PowerShell 5.1, moderner Browser
+- **Client:** Windows 10/11, PowerShell 5.1, moderner Browser
 - **Remote-Server:** WinRM aktiviert, PowerShell Remoting erlaubt
 - **Netzwerk:** Zugriff auf Remote-Hosts via WinRM (Port 5985/5986)
 
 ## Technische Details
 
-- GUI: Standalone HTML/JS, kein Build-Prozess noetig
+- GUI: Standalone HTML/JS, kein Build-Prozess
 - API: `System.Net.HttpListener` auf Port 8765
+- Auth: SHA256-Passwort-Hashing, Bearer-Token Sessions (12h Gueltigkeit)
 - Alle PS-Skripte verwenden UTF-8 BOM Encoding (PowerShell 5.1 Kompatibilitaet)
 - Pfade werden relativ ueber `$PSScriptRoot` aufgeloest
