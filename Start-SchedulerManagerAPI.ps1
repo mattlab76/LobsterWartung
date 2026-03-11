@@ -150,11 +150,11 @@ try {
                         -ComputerName $b.host `
                         -Credential   $cred `
                         -ScriptBlock  {
-                            param($name, $path, $script, $start, $author)
+                            param($name, $path, $script, $start, $author, $maxWait, $pollInt)
 
                             $action = New-ScheduledTaskAction `
                                 -Execute  'powershell.exe' `
-                                -Argument "-ExecutionPolicy Bypass -NonInteractive -File `"$script`""
+                                -Argument "-ExecutionPolicy Bypass -NonInteractive -File `"$script`" -MaxWaitSeconds $maxWait -PollIntervalSeconds $pollInt"
 
                             $trigger = New-ScheduledTaskTrigger -Once -At ([datetime]$start)
 
@@ -185,7 +185,8 @@ try {
                                 State    = $task.State.ToString()
                             }
                         } `
-                        -ArgumentList $b.taskName, $b.taskPath, $b.scriptFull, $b.startTime, $b.user
+                        -ArgumentList $b.taskName, $b.taskPath, $b.scriptFull, $b.startTime, $b.user, `
+                                      ([int]$b.maxWaitSeconds), ([int]$b.pollIntervalSeconds)
 
                     Send-JsonResponse -Response $resp -Data @{
                         ok       = $true

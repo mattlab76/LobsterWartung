@@ -565,6 +565,20 @@
 
         </div>
 
+        <div class="section-label">Erweiterte Einstellungen</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Max. Wartezeit auf Wrapper-Stop (Sekunden)</label>
+            <input type="number" id="f-maxWaitSeconds" value="300" min="30" max="3600" />
+            <span class="form-hint">Wie lange maximal auf den Eintrag &bdquo;Wrapper Stopped&ldquo; im wrapper.log gewartet wird. L&auml;uft diese Zeit ab ohne Best&auml;tigung, gilt die Wartung als fehlgeschlagen. Standard: 300 s (5 Minuten).</span>
+          </div>
+          <div class="form-group">
+            <label>Pr&uuml;fintervall (Sekunden)</label>
+            <input type="number" id="f-pollIntervalSeconds" value="15" min="5" max="120" />
+            <span class="form-hint">Wie h&auml;ufig das wrapper.log auf den Stop-Eintrag gepr&uuml;ft wird. Kleinere Werte erkennen den Stop schneller, erzeugen aber mehr Lesezugriffe auf dem Server. Standard: 15 s.</span>
+          </div>
+        </div>
+
         <div class="section-label">Ermitteltes Skript</div>
         <div class="form-grid">
           <div class="form-group">
@@ -1303,6 +1317,8 @@ function getFormValues() {
     wrapperLogPath:    document.getElementById('f-wrapperLogPath').value.trim(),
     scriptName:        document.getElementById('f-detectedScript').value.trim(),
     taskName:          document.getElementById('f-taskName').value.trim(),
+    maxWaitSeconds:    parseInt(document.getElementById('f-maxWaitSeconds').value)    || 300,
+    pollIntervalSeconds: parseInt(document.getElementById('f-pollIntervalSeconds').value) || 15,
   };
 }
 
@@ -1387,7 +1403,9 @@ function resetForm() {
   const s = loadSettings();
   document.getElementById('f-remoteUser').value     = s.defaultUser || '';
   document.getElementById('f-scriptPath').value     = (s.scriptPaths    && s.scriptPaths[0])    || '';
-  document.getElementById('f-wrapperLogPath').value = (s.wrapperLogPaths && s.wrapperLogPaths[0]) || '';
+  document.getElementById('f-wrapperLogPath').value    = (s.wrapperLogPaths && s.wrapperLogPaths[0]) || '';
+  document.getElementById('f-maxWaitSeconds').value    = 300;
+  document.getElementById('f-pollIntervalSeconds').value = 15;
   document.getElementById('f-detectedScript').style.color = '';
   document.getElementById('script-hint').textContent = '';
   onInstanceTypeChange();
@@ -1434,6 +1452,8 @@ function renderSummary() {
     ['PS-Skript Pfad (Remote)',   f.scriptPath],
     ['Wrapper Log Pfad (Remote)', f.wrapperLogPath],
     ['PS-Skript Name',            f.scriptName],
+    ['Max. Wartezeit',            f.maxWaitSeconds + ' s'],
+    ['Pr&uuml;fintervall',        f.pollIntervalSeconds + ' s'],
   ];
   document.getElementById('summary-table').innerHTML = rows.map(([k, v]) =>
     `<tr><td>${k}</td><td>${v || '<em class="text-muted">–</em>'}</td></tr>`
@@ -1538,19 +1558,22 @@ $taskPath    = '${taskPath}'
 $scriptFull  = '${scriptFull}'
 $startTime   = '${startFmt}'
 
+$maxWait  = ${f.maxWaitSeconds}
+$pollInt  = ${f.pollIntervalSeconds}
+
 $result = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock {
-    param($name, $path, $script, $start)
+    param($name, $path, $script, $start, $maxWait, $pollInt)
 
     $action   = New-ScheduledTaskAction \`
                     -Execute    'powershell.exe' \`
-                    -Argument   "-ExecutionPolicy Bypass -NonInteractive -File \`"$script\`""
+                    -Argument   "-ExecutionPolicy Bypass -NonInteractive -File \`"$script\`" -MaxWaitSeconds $maxWait -PollIntervalSeconds $pollInt"
 
     $trigger  = New-ScheduledTaskTrigger -Once -At ([datetime]$start)
 
     $settings = New-ScheduledTaskSettingsSet \`
                     -ExecutionTimeLimit (New-TimeSpan -Hours 3) \`
                     -MultipleInstances  IgnoreNew \`
-                    -StartWhenAvailable $true
+                    -StartWhenAvailable
 
     $task = Register-ScheduledTask \`
                 -TaskName $name \`
@@ -1564,7 +1587,7 @@ $result = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock 
     Write-Host "[OK] Task registriert: $($task.TaskPath)$($task.TaskName)" -ForegroundColor Green
     return $task.State
 
-} -ArgumentList $taskName, $taskPath, $scriptFull, $startTime
+} -ArgumentList $taskName, $taskPath, $scriptFull, $startTime, $maxWait, $pollInt
 
 Write-Host "Task-Status: $result"`;
   document.getElementById('code-create-task').textContent = code;
@@ -2168,6 +2191,7 @@ async function autoRunAll() {
         host: host, user: f.remoteUser, password: f.remotePassword,
         taskName: f.taskName, taskPath: taskPath,
         scriptFull: scriptFull, startTime: startFmt,
+        maxWaitSeconds: f.maxWaitSeconds, pollIntervalSeconds: f.pollIntervalSeconds,
       })
     }).then(r => r.json());
 
