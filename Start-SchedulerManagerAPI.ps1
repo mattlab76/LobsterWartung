@@ -174,8 +174,20 @@ try {
 
                             # Author und Created per XML-Patch setzen
                             $xml = [xml](Export-ScheduledTask -TaskName $name -TaskPath $path)
-                            $xml.Task.RegistrationInfo.Author = $author
-                            $xml.Task.RegistrationInfo.Date   = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+                            $ns  = $xml.Task.NamespaceURI
+                            $ri  = $xml.Task.RegistrationInfo
+
+                            foreach ($field in @(@{ Name='Author'; Value=$author }, @{ Name='Date'; Value=(Get-Date).ToString('yyyy-MM-ddTHH:mm:ss') })) {
+                                $node = $ri.SelectSingleNode($field.Name)
+                                if ($node) {
+                                    $node.InnerText = $field.Value
+                                } else {
+                                    $newNode = $xml.CreateElement($field.Name, $ns)
+                                    $newNode.InnerText = $field.Value
+                                    $ri.AppendChild($newNode) | Out-Null
+                                }
+                            }
+
                             Unregister-ScheduledTask -TaskName $name -TaskPath $path -Confirm:$false
                             $task = Register-ScheduledTask -TaskName $name -TaskPath $path -Xml $xml.OuterXml -Force
 

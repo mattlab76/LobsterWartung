@@ -969,7 +969,7 @@
                 <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Wartungstyp</th>
                 <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Instanz Typ</th>
                 <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Script-Name</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:40px;"></th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:70px;"></th>
               </tr>
             </thead>
             <tbody id="mapping-rows"></tbody>
@@ -1081,26 +1081,26 @@ function defaultSettings() {
     scriptPaths:        [],
     wrapperLogPaths:    [],
     scriptMappings: [
-      { mt: 'Stop-Lobster',    it: 'Backend und DMZ',                          script: 'Stop-BackendAndDmz.ps1' },
-      { mt: 'Stop-Lobster',    it: 'Backend und DMZ (Backend via Webservice)', script: 'Stop-BackendAndDmz-Webservice.ps1' },
-      { mt: 'Stop-Lobster',    it: 'Backend',                                  script: 'Stop-Backend.ps1' },
-      { mt: 'Stop-Lobster',    it: 'Backend (Backend via Webservice)',          script: 'Stop-Backend-Webservice.ps1' },
-      { mt: 'Stop-Lobster',    it: 'DMZ',                                      script: 'Stop-Dmz.ps1' },
-      { mt: 'Start-Lobster',   it: 'Backend und DMZ',                          script: 'Start-BackendAndDmz.ps1' },
-      { mt: 'Start-Lobster',   it: 'Backend und DMZ (Backend via Webservice)', script: 'Start-BackendAndDmz.ps1' },
-      { mt: 'Start-Lobster',   it: 'Backend',                                  script: 'Start-Backend.ps1' },
-      { mt: 'Start-Lobster',   it: 'Backend (Backend via Webservice)',          script: 'Start-Backend.ps1' },
-      { mt: 'Start-Lobster',   it: 'DMZ',                                      script: 'Start-Dmz.ps1' },
-      { mt: 'Restart-Lobster', it: 'Backend und DMZ',                          script: 'Restart-BackendAndDmz.ps1' },
-      { mt: 'Restart-Lobster', it: 'Backend und DMZ (Backend via Webservice)', script: 'Restart-BackendAndDmz-Webservice.ps1' },
-      { mt: 'Restart-Lobster', it: 'Backend',                                  script: 'Restart-Backend.ps1' },
-      { mt: 'Restart-Lobster', it: 'Backend (Backend via Webservice)',          script: 'Restart-Backend-Webservice.ps1' },
-      { mt: 'Restart-Lobster', it: 'DMZ',                                      script: 'Restart-Dmz.ps1' },
-      { mt: 'Start-Wartung',   it: 'Backend und DMZ',                          script: 'Start-BackendAndDmz.ps1' },
-      { mt: 'Start-Wartung',   it: 'Backend und DMZ (Backend via Webservice)', script: 'Start-BackendAndDmz.ps1' },
-      { mt: 'Start-Wartung',   it: 'Backend',                                  script: 'Start-Backend.ps1' },
-      { mt: 'Start-Wartung',   it: 'Backend (Backend via Webservice)',          script: 'Start-Backend.ps1' },
-      { mt: 'Start-Wartung',   it: 'DMZ',                                      script: 'Start-Dmz.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend und DMZ',                          script: 'scripts\\Stop-BackendAndDmz.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend und DMZ (Backend via Webservice)', script: 'scripts\\Stop-BackendViaWebserviceAndDmzService.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend',                                  script: 'scripts\\Stop-Backend.ps1' },
+      { mt: 'Stop-Lobster',    it: 'Backend (Backend via Webservice)',          script: 'scripts\\Stop-Backend-Webservice.ps1' },
+      { mt: 'Stop-Lobster',    it: 'DMZ',                                      script: 'scripts\\Stop-Dmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend und DMZ',                          script: 'scripts\\Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend und DMZ (Backend via Webservice)', script: 'scripts\\Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend',                                  script: 'scripts\\Start-Backend.ps1' },
+      { mt: 'Start-Lobster',   it: 'Backend (Backend via Webservice)',          script: 'scripts\\Start-Backend.ps1' },
+      { mt: 'Start-Lobster',   it: 'DMZ',                                      script: 'scripts\\Start-Dmz.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend und DMZ',                          script: 'scripts\\Restart-BackendAndDmz.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend und DMZ (Backend via Webservice)', script: 'scripts\\Restart-BackendAndDmz-Webservice.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend',                                  script: 'scripts\\Restart-Backend.ps1' },
+      { mt: 'Restart-Lobster', it: 'Backend (Backend via Webservice)',          script: 'scripts\\Restart-Backend-Webservice.ps1' },
+      { mt: 'Restart-Lobster', it: 'DMZ',                                      script: 'scripts\\Restart-Dmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend und DMZ',                          script: 'scripts\\Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend und DMZ (Backend via Webservice)', script: 'scripts\\Start-BackendAndDmz.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend',                                  script: 'scripts\\Start-Backend.ps1' },
+      { mt: 'Start-Wartung',   it: 'Backend (Backend via Webservice)',          script: 'scripts\\Start-Backend.ps1' },
+      { mt: 'Start-Wartung',   it: 'DMZ',                                      script: 'scripts\\Start-Dmz.ps1' },
     ],
   };
 }
@@ -1138,6 +1138,22 @@ function migrateSettings(s) {
   ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','scriptMappings'].forEach(k => {
     if (!Array.isArray(s[k])) { s[k] = []; changed = true; }
   });
+
+  // v2 → v3: Script-Namen ohne Ordner-Prefix → scripts\ Prefix hinzufügen
+  //          + Stop-BackendAndDmz-Webservice.ps1 → Stop-BackendViaWebserviceAndDmzService.ps1
+  if (Array.isArray(s.scriptMappings)) {
+    s.scriptMappings = s.scriptMappings.map(m => {
+      let sc = m.script || '';
+      if (sc === 'Stop-BackendAndDmz-Webservice.ps1') {
+        changed = true;
+        sc = 'scripts\\Stop-BackendViaWebserviceAndDmzService.ps1';
+      } else if (sc && !sc.includes('\\') && !sc.includes('/')) {
+        changed = true;
+        sc = 'scripts\\' + sc;
+      }
+      return { mt: m.mt, it: m.it, script: sc };
+    });
+  }
 
   return changed;
 }
@@ -1841,7 +1857,8 @@ function renderMappingTable(mappings) {
       <td style="padding:7px 10px;">${m.mt}</td>
       <td style="padding:7px 10px;">${m.it}</td>
       <td style="padding:7px 10px;font-family:monospace;">${m.script}</td>
-      <td style="padding:7px 10px;text-align:center;">
+      <td style="padding:7px 10px;text-align:center;white-space:nowrap;">
+        <span style="cursor:pointer;color:var(--accent);font-size:15px;margin-right:8px;" onclick="editScriptMapping(${i})" title="Bearbeiten">&#9998;</span>
         <span style="cursor:pointer;color:var(--error);font-size:16px;" onclick="removeScriptMapping(${i})" title="Entfernen">&times;</span>
       </td>
     </tr>`).join('');
@@ -1871,6 +1888,21 @@ function removeScriptMapping(idx) {
   saveSettings(s);
   renderSettingsTab();
   refreshDropdowns();
+}
+
+function editScriptMapping(idx) {
+  const s = loadSettings();
+  const m = s.scriptMappings[idx];
+  if (!m) return;
+  document.getElementById('new-map-mt').value     = m.mt;
+  document.getElementById('new-map-it').value     = m.it;
+  document.getElementById('new-map-script').value = m.script;
+  s.scriptMappings.splice(idx, 1);
+  saveSettings(s);
+  renderMappingTable(s.scriptMappings);
+  document.getElementById('new-map-mt').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('new-map-mt').focus();
+  showToast('Eintrag geladen \u2013 jetzt bearbeiten und speichern');
 }
 
 function renderTagList(containerId, items, listKey) {
@@ -2178,6 +2210,35 @@ async function autoRunAll() {
   const ll = (text, cls) => logLine(log, text, cls);
 
   try {
+    // ── 0. Skript auf Remote-Host prüfen ───────────────────
+    ll('── Schritt 0: Skript auf Remote-Host prüfen ──', 'log-info');
+    ll('Host   : ' + host, 'log-info');
+    ll('Skript : ' + scriptFull, 'log-info');
+
+    const r0 = await fetch(API_URL + '/check-script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: host, user: f.remoteUser, password: f.remotePassword,
+        scriptPath: f.scriptPath, scriptName: f.scriptName,
+        wrapperLogPath: f.wrapperLogPath,
+      })
+    }).then(r => r.json());
+
+    if (!r0.ok || !r0.scriptExists) {
+      ll('[FEHLER] Skript nicht gefunden: ' + (r0.scriptPath || scriptFull), 'log-err');
+      ll('→ Task wird NICHT angelegt. Bitte Skript-Pfad prüfen.', 'log-err');
+      btn.disabled = false; btn.innerHTML = origLabel;
+      return;
+    }
+    ll('[OK] Skript gefunden: ' + r0.scriptPath, 'log-ok');
+    if (!r0.logExists) {
+      ll('[WARNUNG] Wrapper Log noch nicht gefunden: ' + r0.logPath, 'log-warn');
+    } else {
+      ll('[OK] Wrapper Log gefunden: ' + r0.logPath, 'log-ok');
+    }
+    ll('', '');
+
     // ── 1. Scheduler Task anlegen ──────────────────────────
     ll('── Schritt 1: Scheduler Task anlegen ──', 'log-info');
     ll('Host   : ' + host, 'log-info');
@@ -2261,7 +2322,7 @@ async function autoRunAll() {
 
     // Historie speichern und nach kurzer Pause zu Done springen
     currentForm.mailSent = !!mailTo;
-    saveHistory(currentForm);
+    saveHistoryEntry(currentForm);
     setTimeout(() => setStep(7), 1500);
 
   } catch (e) {
