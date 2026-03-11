@@ -9,13 +9,15 @@
     [Parameter(Mandatory=$true)] [pscredential] $DmzCredential,
     [Parameter(Mandatory=$true)] [string]       $DmzServiceName,
     [Parameter(Mandatory=$true)] [string]       $DmzWrapperLogPath,
-    [string] $DmzScriptPath    = 'C:\LobsterMaintenance\scripts\Stop-Dmz.ps1',
+    [string] $DmzScriptPath    = '',
     [string] $MailTo           = '',
     [string] $MailFrom         = 'noreply@firma.local',
     [string] $SmtpServer       = '',
     [int]    $MaxWaitSeconds   = 300,
     [int]    $PollIntervalSeconds = 15
 )
+if ([string]::IsNullOrEmpty($DmzScriptPath)) { $DmzScriptPath = "$PSScriptRoot\Stop-Dmz.ps1" }
+
 & "$PSScriptRoot\..\Stop-LobsterService.ps1" `
     -ServiceName          $BackendServiceName `
     -WrapperLogPath       $BackendWrapperLogPath `

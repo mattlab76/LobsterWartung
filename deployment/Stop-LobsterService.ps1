@@ -61,8 +61,8 @@ param(
     [string]$DmzServiceName     = '',
     [string]$DmzWrapperLogPath  = '',
 
-    # Pfad zu diesem Skript auf dem DMZ-Host
-    [string]$DmzScriptPath      = 'C:\LobsterMaintenance\Stop-LobsterService.ps1',
+    # Pfad zu diesem Skript auf dem DMZ-Host (leer = wird aus $PSScriptRoot abgeleitet)
+    [string]$DmzScriptPath      = '',
 
     # ── Mail-Benachrichtigung (nur im Orchestrator-Modus) ────────────────────
     [string]$MailTo      = '',
@@ -233,6 +233,8 @@ function Send-ResultMail {
 }
 
 # ── Hauptlogik ────────────────────────────────────────────────────────────────
+
+if ([string]::IsNullOrEmpty($DmzScriptPath)) { $DmzScriptPath = "$PSScriptRoot\scripts\Stop-Dmz.ps1" }
 
 $scriptStart       = Get-Date
 $orchestratorMode  = -not [string]::IsNullOrWhiteSpace($DmzHost)
