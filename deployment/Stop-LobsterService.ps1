@@ -257,6 +257,18 @@ if (-not $orchestratorMode) {
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($checkResult.Message)"
 
+    if ($MailTo -and $SmtpServer) {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail senden ..."
+        Send-ResultMail `
+            -To             $MailTo `
+            -From           $MailFrom `
+            -Smtp           $SmtpServer `
+            -Success        $checkResult.Ok `
+            -DmzMessage     'n/a (Backend-Only)' `
+            -BackendMessage $checkResult.Message
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail gesendet an: $MailTo"
+    }
+
     # Nur Ergebnis-Objekt zurueckgeben – kein Log-Transfer zum rufenden Host
     return [PSCustomObject]@{
         Host    = $env:COMPUTERNAME
