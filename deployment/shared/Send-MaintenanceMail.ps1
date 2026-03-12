@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Gemeinsamer Mail-Helper fuer alle Lobster-Wartungs-Scripts.

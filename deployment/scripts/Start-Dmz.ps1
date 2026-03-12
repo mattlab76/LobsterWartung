@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Start-Dmz.ps1
 # TODO: Invoke-LobsterStartup.ps1 implementieren (analog zu Invoke-LobsterShutdown.ps1)
 [CmdletBinding()] param()

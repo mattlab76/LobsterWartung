@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Stop-BackendViaWebserviceAndDmzService.ps1
 # Backend-Dienst via Lobster-Webservice stoppen + DMZ-Dienst via Windows-Dienst stoppen.
 # Laeuft auf dem Backend-Host. Hinweis: DMZ kann nicht via Webservice gestoppt werden.

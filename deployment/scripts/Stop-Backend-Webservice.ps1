@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Stop-Backend-Webservice.ps1
 # Backend-Dienst via Lobster-Webservice stoppen. Kein DMZ.
 # Hinweis: WebserviceUrl-Parameter wird in Invoke-LobsterShutdown.ps1 noch implementiert.

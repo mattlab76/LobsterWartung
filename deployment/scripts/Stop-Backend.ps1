@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Stop-Backend.ps1
 # Nur den lokalen Backend-Dienst stoppen (Windows-Dienst). Kein DMZ.
 [CmdletBinding()] param(

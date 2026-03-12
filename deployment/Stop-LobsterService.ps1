@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Lobster-Dienst herunterfahren und Java-Wrapper-Stop verifizieren.
@@ -148,7 +148,7 @@ function Wait-WrapperStopped {
         if ($lastStopIdx -ge 0 -and $lastStartIdx -gt $lastStopIdx) {
             return [PSCustomObject]@{
                 Ok      = $false
-                Message = "Wrapper nach Stopp sofort wieder gestartet – Dienst laeuft wieder."
+                Message = "Wrapper nach Stopp sofort wieder gestartet - Dienst laeuft wieder."
             }
         }
 
@@ -197,13 +197,13 @@ function Send-ResultMail {
     $color  = if ($Success) { '#2e7d32' } else { '#c62828' }
     $icon   = if ($Success) { '&#10003;' } else { '&#10007;' }
 
-    $subject = "Lobster Wartung – $status – $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
+    $subject = "Lobster Wartung - $status - $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
 
     $enc = [System.Net.WebUtility]
     $body = @"
 <html>
 <body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#333;">
-  <h2 style="color:$color;">$icon Lobster Wartung – $status</h2>
+  <h2 style="color:$color;">$icon Lobster Wartung - $status</h2>
   <table border="1" cellpadding="8" cellspacing="0"
          style="border-collapse:collapse;min-width:500px;">
     <tr style="background:#f0f0f0;">

@@ -701,6 +701,13 @@
             <span class="form-hint">Vollst&auml;ndiger Pfad zur wrapper.log &ndash; gespeicherte Pfade werden als Vorschlag angeboten</span>
           </div>
 
+          <div class="form-group">
+            <label>Windows Service Name <span class="req">*</span></label>
+            <input type="text" id="f-serviceName" list="dl-serviceNames" placeholder="z.B. Lobster Integration Server" autocomplete="off" />
+            <datalist id="dl-serviceNames"></datalist>
+            <span class="form-hint">Name des Windows-Dienstes wie in services.msc angezeigt &ndash; wird als -ServiceName Parameter &uuml;bergeben</span>
+          </div>
+
         </div>
 
         <div class="section-label">Erweiterte Einstellungen</div>
@@ -768,14 +775,6 @@
               <div style="font-size:12px; color:var(--text-muted);">Zeigt den fertigen PowerShell-Befehl an &ndash; zum Kopieren und selbst ausf&uuml;hren.</div>
             </div>
           </div>
-          <!-- Schritt f&uuml;r Schritt -->
-          <div id="mode-steps-card" class="card" style="flex:1; min-width:280px; margin-bottom:0; cursor:pointer; border:2px solid var(--border); transition:border-color .2s;" onclick="selectMode('steps')">
-            <div class="card-body" style="padding:16px; text-align:center;">
-              <div style="font-size:32px; margin-bottom:8px;">&#128297;</div>
-              <div style="font-weight:700; font-size:15px; margin-bottom:6px;">Schritt f&uuml;r Schritt</div>
-              <div style="font-size:12px; color:var(--text-muted);">Jeden Schritt einzeln pr&uuml;fen und best&auml;tigen (mit oder ohne API).</div>
-            </div>
-          </div>
         </div>
 
         <!-- Auto-Panel (nur nach Auswahl "Automatisch") -->
@@ -795,10 +794,6 @@
 
         <!-- Manual-Panel (nur nach Auswahl "Manuell") -->
         <div id="manual-command-panel" style="display:none; margin-top:8px;">
-          <div class="alert alert-info" style="margin-bottom:12px;">
-            <span class="alert-icon">&#128203;</span>
-            <div>Erstelle den Scheduled Task <strong>manuell</strong> im Task Scheduler (taskschd.msc) auf dem Ziel-Host und hinterlege die folgenden Werte als Aktion:</div>
-          </div>
 
           <table class="summary-table" style="margin-bottom:16px;">
             <tr><td>Ziel-Host</td><td id="manual-host" style="font-family:monospace;"></td></tr>
@@ -807,29 +802,43 @@
             <tr><td>Startzeitpunkt</td><td id="manual-starttime"></td></tr>
           </table>
 
-          <div class="section-label">Aktion &ndash; Programm/Skript</div>
-          <div class="code-wrap" style="margin-bottom:16px;">
+          <!-- 1: Direkt-Befehl -->
+          <div class="section-label">1 &ndash; Skript direkt in PowerShell ausf&uuml;hren</div>
+          <div class="alert alert-info" style="margin-bottom:8px; padding:8px 12px;">
+            <span class="alert-icon">&#9654;</span>
+            <div>Diesen Befehl direkt in einer <strong>offenen PowerShell</strong> auf dem Ziel-Host eingeben, um das Skript sofort auszuf&uuml;hren (z.B. zum Testen).</div>
+          </div>
+          <div class="code-wrap" style="margin-bottom:20px;">
             <div class="code-header">
-              <span class="code-label">Programm/Skript</span>
+              <span class="code-label">PowerShell &ndash; Direkt ausf&uuml;hren</span>
               <div class="code-btns">
-                <button class="btn btn-secondary btn-sm" onclick="copyCode('code-manual-program')">&#128203; Kopieren</button>
+                <button class="btn btn-secondary btn-sm" onclick="copyCode('code-manual-direct')">&#128203; Kopieren</button>
               </div>
             </div>
-            <div class="code-block" id="code-manual-program" style="max-height:none;"></div>
+            <div class="code-block" id="code-manual-direct" style="max-height:none; white-space:pre-wrap;"></div>
           </div>
 
-          <div class="section-label">Aktion &ndash; Argumente hinzuf&uuml;gen</div>
-          <div class="code-wrap" style="margin-bottom:16px;">
+          <!-- 2: Scheduler-Eintrag erstellen -->
+          <div class="section-label">2 &ndash; Scheduled Task per PowerShell anlegen</div>
+          <div class="alert alert-warning" style="margin-bottom:8px; padding:8px 12px;">
+            <span class="alert-icon">&#9888;&#65039;</span>
+            <div>Diesen Befehl in PowerShell auf dem <strong>Ziel-Host</strong> ausf&uuml;hren (oder per <code>Invoke-Command</code> aus der Ferne), um den Scheduled Task anzulegen.</div>
+          </div>
+          <div class="code-wrap" style="margin-bottom:20px;">
             <div class="code-header">
-              <span class="code-label">Argumente</span>
+              <span class="code-label">PowerShell &ndash; Scheduled Task erstellen</span>
               <div class="code-btns">
-                <button class="btn btn-secondary btn-sm" onclick="copyCode('code-manual-args')">&#128203; Kopieren</button>
+                <button class="btn btn-secondary btn-sm" onclick="copyCode('code-manual-create-task')">&#128203; Kopieren</button>
               </div>
             </div>
-            <div class="code-block" id="code-manual-args" style="max-height:none;"></div>
+            <div class="code-block" id="code-manual-create-task" style="max-height:none; white-space:pre-wrap;"></div>
           </div>
 
-          <div style="margin-top:16px;">
+          <!-- hidden elements kept for backward compatibility -->
+          <span id="code-manual-program" style="display:none;"></span>
+          <span id="code-manual-args" style="display:none;"></span>
+
+          <div style="margin-top:4px;">
             <button class="btn btn-success" onclick="finishWorkflow(false)">&#10003; Erledigt &ndash; Workflow abschlie&szlig;en</button>
           </div>
         </div>
@@ -841,199 +850,6 @@
     </div>
   </div>
 
-  <!-- STEP 3: Skript prüfen -->
-  <div class="step-panel" id="step-3">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-header-left"><span>&#128269;</span><h3>Schritt 3 &ndash; PS-Skript pr&uuml;fen</h3></div>
-        <span id="status-badge-3"></span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-info">
-          <span class="alert-icon">&#8505;&#65039;</span>
-          <div>F&uuml;hre den folgenden PowerShell-Befehl aus, um zu pr&uuml;fen ob das ben&ouml;tigte Skript auf dem Remote-Host vorhanden ist. Danach Status setzen.</div>
-        </div>
-        <!-- Auto-Panel Schritt 3 -->
-        <div id="auto-panel-3" class="auto-panel" style="display:none;">
-          <div class="auto-panel-row">
-            <span class="api-dot online" style="flex-shrink:0;"></span>
-            <span class="auto-panel-title">Auto-Modus aktiv</span>
-            <button class="btn btn-primary btn-sm" id="auto-btn-3" onclick="autoRun(3)">&#9654; Jetzt ausf&uuml;hren</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(3)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
-          </div>
-          <div id="auto-log-3" class="run-log" style="display:none;"></div>
-        </div>
-
-        <div class="code-wrap" id="manual-wrap-3">
-          <div class="code-header">
-            <span class="code-label">PowerShell &ndash; Skript pr&uuml;fen</span>
-            <div class="code-btns">
-              <button class="btn btn-secondary btn-sm" onclick="copyCode('code-check-script')">&#128203; Kopieren</button>
-              <button class="btn btn-secondary btn-sm" onclick="downloadCode('code-check-script','Check-ScriptExists.ps1')">&#11015; Download</button>
-            </div>
-          </div>
-          <div class="code-block" id="code-check-script"></div>
-        </div><!-- /manual-wrap-3 -->
-        <div class="step-check-row">
-          <span class="step-check-label">Status nach Ausf&uuml;hrung:</span>
-          <button class="btn btn-success btn-sm" onclick="markDone(3)">&#10003; Skript gefunden</button>
-          <button class="btn btn-danger  btn-sm" onclick="markError(3)">&#10007; Skript nicht gefunden</button>
-        </div>
-        <div class="actions space-between" style="margin-top:20px;">
-          <button class="btn btn-secondary" onclick="setStep(2)">&larr; Zur&uuml;ck</button>
-          <button class="btn btn-primary" id="next-3" onclick="setStep(4)" disabled>Weiter &rarr;</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STEP 4: Scheduler setzen -->
-  <div class="step-panel" id="step-4">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-header-left"><span>&#128197;</span><h3>Schritt 4 &ndash; Scheduler Eintrag setzen</h3></div>
-        <span id="status-badge-4"></span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-warning">
-          <span class="alert-icon">&#9888;&#65039;</span>
-          <div><strong>Sicherheitshinweis:</strong> Das Passwort ist im generierten Skript enthalten. Bitte das Konsolenfenster danach schlie&szlig;en und die heruntergeladene .ps1-Datei nach der Verwendung l&ouml;schen.</div>
-        </div>
-
-        <!-- Auto-Panel Schritt 4 -->
-        <div id="auto-panel-4" class="auto-panel" style="display:none;">
-          <div class="auto-panel-row">
-            <span class="api-dot online" style="flex-shrink:0;"></span>
-            <span class="auto-panel-title">Auto-Modus aktiv &ndash; Passwort wird nur im Speicher verwendet, nicht in eine Datei geschrieben</span>
-            <button class="btn btn-primary btn-sm" id="auto-btn-4" onclick="autoRun(4)">&#9654; Jetzt ausf&uuml;hren</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(4)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
-          </div>
-          <div id="auto-log-4" class="run-log" style="display:none;"></div>
-        </div>
-
-        <div class="code-wrap" id="manual-wrap-4">
-          <div class="code-header">
-            <span class="code-label">PowerShell &ndash; Scheduled Task erstellen</span>
-            <div class="code-btns">
-              <button class="btn btn-secondary btn-sm" onclick="copyCode('code-create-task')">&#128203; Kopieren</button>
-              <button class="btn btn-secondary btn-sm" onclick="downloadCode('code-create-task','Create-SchedulerEntry.ps1')">&#11015; Download</button>
-            </div>
-          </div>
-          <div class="code-block" id="code-create-task"></div>
-        </div><!-- /manual-wrap-4 -->
-        <div class="step-check-row">
-          <span class="step-check-label">Status nach Ausf&uuml;hrung:</span>
-          <button class="btn btn-success btn-sm" onclick="markDone(4)">&#10003; Eintrag erstellt</button>
-          <button class="btn btn-danger  btn-sm" onclick="markError(4)">&#10007; Fehler aufgetreten</button>
-        </div>
-        <div class="actions space-between" style="margin-top:20px;">
-          <button class="btn btn-secondary" onclick="setStep(3)">&larr; Zur&uuml;ck</button>
-          <button class="btn btn-primary" id="next-4" onclick="setStep(5)" disabled>Weiter &rarr;</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STEP 5: Eintrag prüfen -->
-  <div class="step-panel" id="step-5">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-header-left"><span>&#9989;</span><h3>Schritt 5 &ndash; Eintrag pr&uuml;fen</h3></div>
-        <span id="status-badge-5"></span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-info">
-          <span class="alert-icon">&#8505;&#65039;</span>
-          <div>Pr&uuml;fe, ob der Scheduled Task am Remote-Host erfolgreich angelegt wurde.</div>
-        </div>
-
-        <!-- Auto-Panel Schritt 5 -->
-        <div id="auto-panel-5" class="auto-panel" style="display:none;">
-          <div class="auto-panel-row">
-            <span class="api-dot online" style="flex-shrink:0;"></span>
-            <span class="auto-panel-title">Auto-Modus aktiv</span>
-            <button class="btn btn-primary btn-sm" id="auto-btn-5" onclick="autoRun(5)">&#9654; Jetzt ausf&uuml;hren</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(5)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
-          </div>
-          <div id="auto-log-5" class="run-log" style="display:none;"></div>
-        </div>
-
-        <div class="code-wrap" id="manual-wrap-5">
-          <div class="code-header">
-            <span class="code-label">PowerShell &ndash; Scheduled Task pr&uuml;fen</span>
-            <div class="code-btns">
-              <button class="btn btn-secondary btn-sm" onclick="copyCode('code-verify-task')">&#128203; Kopieren</button>
-              <button class="btn btn-secondary btn-sm" onclick="downloadCode('code-verify-task','Verify-SchedulerEntry.ps1')">&#11015; Download</button>
-            </div>
-          </div>
-          <div class="code-block" id="code-verify-task"></div>
-        </div><!-- /manual-wrap-5 -->
-        <div class="step-check-row">
-          <span class="step-check-label">Status:</span>
-          <button class="btn btn-success btn-sm" onclick="markDone(5)">&#10003; Eintrag best&auml;tigt</button>
-          <button class="btn btn-danger  btn-sm" onclick="markError(5)">&#10007; Eintrag nicht gefunden</button>
-        </div>
-        <div class="actions space-between" style="margin-top:20px;">
-          <button class="btn btn-secondary" onclick="setStep(4)">&larr; Zur&uuml;ck</button>
-          <button class="btn btn-primary" id="next-5" onclick="setStep(6)" disabled>Weiter &rarr;</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STEP 6: Mail senden -->
-  <div class="step-panel" id="step-6">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-header-left"><span>&#128231;</span><h3>Schritt 6 &ndash; Benachrichtigungsmail</h3></div>
-      </div>
-      <div class="card-body">
-        <div class="form-grid" style="margin-bottom:16px;">
-          <div class="form-group">
-            <label>Empf&auml;nger</label>
-            <input type="email" id="f-mailTo" placeholder="empfaenger@domain.tld" oninput="updateMailCode()" />
-          </div>
-          <div class="form-group">
-            <label>Betreff</label>
-            <input type="text" id="f-mailSubject" oninput="updateMailCode()" />
-          </div>
-          <div class="form-group full-width">
-            <label>Mailtext</label>
-            <textarea id="f-mailBody" rows="9" style="resize:vertical;" oninput="updateMailCode()"></textarea>
-          </div>
-        </div>
-        <!-- Auto-Panel Schritt 6 -->
-        <div id="auto-panel-6" class="auto-panel" style="display:none;">
-          <div class="auto-panel-row">
-            <span class="api-dot online" style="flex-shrink:0;"></span>
-            <span class="auto-panel-title">Auto-Modus aktiv</span>
-            <button class="btn btn-primary btn-sm" id="auto-btn-6" onclick="autoRun(6)">&#9993; Mail automatisch senden</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleManualScript(6)" style="margin-left:auto;" title="Manuelles PowerShell-Script ein-/ausblenden">&#128196; Manuelles Script</button>
-          </div>
-          <div id="auto-log-6" class="run-log" style="display:none;"></div>
-        </div>
-
-        <div class="code-wrap" id="manual-wrap-6">
-          <div class="code-header">
-            <span class="code-label">PowerShell &ndash; Mail senden</span>
-            <div class="code-btns">
-              <button class="btn btn-secondary btn-sm" onclick="copyCode('code-send-mail')">&#128203; Kopieren</button>
-              <button class="btn btn-secondary btn-sm" onclick="downloadCode('code-send-mail','Send-Notification.ps1')">&#11015; Download</button>
-            </div>
-          </div>
-          <div class="code-block" id="code-send-mail"></div>
-        </div><!-- /manual-wrap-6 -->
-        <div class="step-check-row">
-          <span class="step-check-label">Abschlie&szlig;en:</span>
-          <button class="btn btn-success  btn-sm" onclick="finishWorkflow(true)">&#10003; Mail versendet &amp; Abschlie&szlig;en</button>
-          <button class="btn btn-secondary btn-sm" onclick="finishWorkflow(false)">Mail &uuml;berspringen &amp; Abschlie&szlig;en</button>
-        </div>
-        <div class="actions space-between" style="margin-top:20px;">
-          <button class="btn btn-secondary" onclick="setStep(5)">&larr; Zur&uuml;ck</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- STEP 7: Abschluss -->
   <div class="step-panel" id="step-7">
@@ -1213,6 +1029,18 @@
       </div>
     </div>
 
+    <!-- Windows Service Names -->
+    <div class="card">
+      <div class="card-header"><div class="card-header-left"><span>&#9881;&#65039;</span><h3>Windows Service Names</h3></div></div>
+      <div class="card-body">
+        <div class="tag-list" id="list-serviceNames"></div>
+        <div class="add-item-row">
+          <input type="text" id="new-serviceName" placeholder="z.B. Lobster Integration Server" onkeydown="if(event.key==='Enter') addItem('serviceNames','new-serviceName')" />
+          <button class="btn btn-primary btn-sm" onclick="addItem('serviceNames','new-serviceName')">+ Hinzuf&uuml;gen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Standard-Werte — spans full width -->
     <div class="card" style="grid-column:1/-1;">
       <div class="card-header"><div class="card-header-left"><span>&#128295;</span><h3>Standard-Werte</h3></div></div>
@@ -1306,11 +1134,7 @@ const HISTORY_KEY  = 'lsm_history_v1';
 
 const STEPS = [
   { id: 1, label: 'Konfigu-\nration' },
-  { id: 2, label: 'Zusammen-\nfassung' },
-  { id: 3, label: 'Skript\nprüfen' },
-  { id: 4, label: 'Scheduler\nsetzen' },
-  { id: 5, label: 'Eintrag\nprüfen' },
-  { id: 6, label: 'Mail\nsenden' },
+  { id: 2, label: 'Ausführung' },
   { id: 7, label: 'Abschluss' },
 ];
 
@@ -1357,6 +1181,7 @@ function defaultSettings() {
     currentCompany:     'Augustin Quehenberger Group',
     scriptPaths:        [],
     wrapperLogPaths:    [],
+    serviceNames:       [],
     scriptMappings: [
       { mt: 'Stop-Lobster',    it: 'Backend und DMZ',                          script: 'scripts\\Stop-BackendAndDmz.ps1' },
       { mt: 'Stop-Lobster',    it: 'Backend und DMZ (Backend via Webservice)', script: 'scripts\\Stop-BackendViaWebserviceAndDmzService.ps1' },
@@ -1412,7 +1237,7 @@ function migrateSettings(s) {
   }
 
   // Typ-Guard: Array-Felder sicherstellen (falls JSON korrupt)
-  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','scriptMappings'].forEach(k => {
+  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','serviceNames','scriptMappings'].forEach(k => {
     if (!Array.isArray(s[k])) { s[k] = []; changed = true; }
   });
 
@@ -1584,10 +1409,6 @@ function setStep(n) {
   renderStepProgress();
 
   if (n === 2) renderSummary();
-  if (n === 3) renderCheckScriptCode();
-  if (n === 4) renderCreateTaskCode();
-  if (n === 5) renderVerifyTaskCode();
-  if (n === 6) renderMailStep();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1608,6 +1429,7 @@ function getFormValues() {
     schedulerLocation: document.getElementById('f-schedulerLocation').value,
     scriptPath:        document.getElementById('f-scriptPath').value.trim(),
     wrapperLogPath:    document.getElementById('f-wrapperLogPath').value.trim(),
+    serviceName:       document.getElementById('f-serviceName').value.trim(),
     scriptName:        document.getElementById('f-detectedScript').value.trim(),
     taskName:          document.getElementById('f-taskName').value.trim(),
     maxWaitSeconds:    parseInt(document.getElementById('f-maxWaitSeconds').value)    || 300,
@@ -1673,6 +1495,7 @@ function validateForm() {
   if (!f.schedulerLocation) errors.push('Scheduler Location fehlt');
   if (!f.scriptPath)        errors.push('PS-Skript Pfad fehlt');
   if (!f.wrapperLogPath)    errors.push('Wrapper Log Pfad fehlt');
+  if (!f.serviceName)       errors.push('Windows Service Name fehlt');
   if (!f.scriptName || f.scriptName.startsWith('(')) errors.push('Kein gültiges PS-Skript ermittelbar');
   return errors;
 }
@@ -1697,6 +1520,7 @@ function resetForm() {
   document.getElementById('f-remoteUser').value     = s.defaultUser || '';
   document.getElementById('f-scriptPath').value     = (s.scriptPaths    && s.scriptPaths[0])    || '';
   document.getElementById('f-wrapperLogPath').value    = (s.wrapperLogPaths && s.wrapperLogPaths[0]) || '';
+  document.getElementById('f-serviceName').value       = (s.serviceNames    && s.serviceNames[0])    || '';
   document.getElementById('f-maxWaitSeconds').value    = 300;
   document.getElementById('f-pollIntervalSeconds').value = 15;
   document.getElementById('f-detectedScript').style.color = '';
@@ -1746,6 +1570,7 @@ function renderSummary() {
     ['Scheduler Task Name',       f.taskName],
     ['PS-Skript Pfad (Remote)',   f.scriptPath],
     ['Wrapper Log Pfad (Remote)', f.wrapperLogPath],
+    ['Windows Service Name',      f.serviceName],
     ['PS-Skript Name',            f.scriptName],
     ['Max. Wartezeit',            f.maxWaitSeconds + ' s'],
     ['Pr&uuml;fintervall',        f.pollIntervalSeconds + ' s'],
@@ -1758,7 +1583,7 @@ function renderSummary() {
   selectedMode = null;
   document.getElementById('auto-all-panel').style.display = 'none';
   document.getElementById('manual-command-panel').style.display = 'none';
-  ['auto','manual','steps'].forEach(m => {
+  ['auto','manual'].forEach(m => {
     document.getElementById('mode-' + m + '-card').style.borderColor = 'var(--border)';
   });
 
@@ -1783,42 +1608,78 @@ function selectMode(mode) {
   selectedMode = mode;
 
   // Highlight gewählte Karte
-  ['auto','manual','steps'].forEach(m => {
+  ['auto','manual'].forEach(m => {
     const card = document.getElementById('mode-' + m + '-card');
     card.style.borderColor = m === mode ? 'var(--accent)' : 'var(--border)';
   });
 
   // Panels ein-/ausblenden
-  document.getElementById('auto-all-panel').style.display        = mode === 'auto'   ? 'block' : 'none';
-  document.getElementById('manual-command-panel').style.display   = mode === 'manual' ? 'block' : 'none';
+  document.getElementById('auto-all-panel').style.display       = mode === 'auto'   ? 'block' : 'none';
+  document.getElementById('manual-command-panel').style.display  = mode === 'manual' ? 'block' : 'none';
 
   if (mode === 'manual') {
     renderManualFullCommand();
-  }
-  if (mode === 'steps') {
-    setStep(3);
   }
 }
 
 function renderManualFullCommand() {
   const f          = currentForm;
+  const s          = loadSettings();
   const host       = getTargetHost(f);
   const taskPath   = '\\' + f.schedulerLocation + '\\';
   const scriptFull = f.scriptPath.replace(/\//g,'\\') + '\\' + f.scriptName;
-  const startFmt   = f.startTime.replace('T', ' ');
+  const startFmt   = f.startTime.replace('T', ' ') + ':00';
+
+  // Script-Parameter je nach Skript-Typ
+  const isBackendAndDmz = /BackendAndDmz|BackendViaWebservice/i.test(f.scriptName || '');
+  const svcParam  = isBackendAndDmz ? 'BackendServiceName' : 'ServiceName';
+  const logParam  = isBackendAndDmz ? 'BackendWrapperLogPath' : 'WrapperLogPath';
+  const dmzArgs   = isBackendAndDmz && f.dmzHost ? ` -DmzHost '${f.dmzHost}'` : '';
+  const mailTo    = s.mailTo    || '';
+  const mailFrom  = s.mailFrom  || 'noreply@firma.local';
+  const smtp      = s.smtpServer || '';
+  const mailArgs  = mailTo && smtp
+    ? ` -MailTo '${mailTo}' -MailFrom '${mailFrom}' -SmtpServer '${smtp}'`
+    : '';
+
+  const scriptParams =
+    ` -${svcParam} "${f.serviceName}"` +
+    ` -${logParam} "${f.wrapperLogPath}"` +
+    dmzArgs + mailArgs +
+    ` -MaxWaitSeconds ${f.maxWaitSeconds} -PollIntervalSeconds ${f.pollIntervalSeconds}`;
 
   // Info-Tabelle befüllen
-  document.getElementById('manual-host').textContent     = host;
+  document.getElementById('manual-host').textContent      = host;
   document.getElementById('manual-taskpath').textContent  = taskPath;
   document.getElementById('manual-taskname').textContent  = f.taskName;
   document.getElementById('manual-starttime').textContent = startFmt;
 
-  // Programm
-  document.getElementById('code-manual-program').textContent = 'powershell.exe';
+  // 1: Direkt-Befehl (& Operator für offene PowerShell)
+  document.getElementById('code-manual-direct').textContent =
+    `& "${scriptFull}"` + scriptParams;
 
-  // Argumente
-  document.getElementById('code-manual-args').textContent =
-    `-ExecutionPolicy Bypass -NonInteractive -File "${scriptFull}" -MaxWaitSeconds ${f.maxWaitSeconds} -PollIntervalSeconds ${f.pollIntervalSeconds}`;
+  // 2: Scheduled Task anlegen per PowerShell
+  const psArgs = `-ExecutionPolicy Bypass -NonInteractive -File "${scriptFull}"` + scriptParams;
+  document.getElementById('code-manual-create-task').textContent =
+`$action   = New-ScheduledTaskAction \`
+              -Execute  'powershell.exe' \`
+              -Argument '${psArgs.replace(/'/g, "''")}'
+
+$trigger  = New-ScheduledTaskTrigger -Once -At '${startFmt}'
+
+$settings = New-ScheduledTaskSettingsSet \`
+              -ExecutionTimeLimit (New-TimeSpan -Hours 3) \`
+              -MultipleInstances  IgnoreNew \`
+              -StartWhenAvailable
+
+Register-ScheduledTask \`
+    -TaskName '${f.taskName}' \`
+    -TaskPath '${taskPath}' \`
+    -Action   $action \`
+    -Trigger  $trigger \`
+    -Settings $settings \`
+    -RunLevel Highest \`
+    -Force`;
 }
 
 // ============================================================
@@ -1889,10 +1750,24 @@ if ($result.LogExists) {
 
 function renderCreateTaskCode() {
   const f        = currentForm;
+  const s        = loadSettings();
   const host     = getTargetHost(f);
   const taskPath = '\\' + f.schedulerLocation + '\\';
   const scriptFull = f.scriptPath.replace(/\//g,'\\') + '\\' + f.scriptName;
   const startFmt   = f.startTime.replace('T', ' ') + ':00';
+
+  // Script-Parameter je nach Skript-Typ (BackendAndDmz vs. einfache Skripte)
+  const isBackendAndDmz = /BackendAndDmz|BackendViaWebservice/i.test(f.scriptName || '');
+  const svcParam  = isBackendAndDmz ? 'BackendServiceName' : 'ServiceName';
+  const logParam  = isBackendAndDmz ? 'BackendWrapperLogPath' : 'WrapperLogPath';
+  const dmzArgs   = isBackendAndDmz && f.dmzHost ? ` -DmzHost '${f.dmzHost}'` : '';
+  const mailTo    = s.mailTo    || '';
+  const mailFrom  = s.mailFrom  || 'noreply@firma.local';
+  const smtp      = s.smtpServer || '';
+  const mailArgs  = mailTo && smtp
+    ? ` -MailTo '${mailTo}' -MailFrom '${mailFrom}' -SmtpServer '${smtp}'`
+    : '';
+  const scriptArgs = `-${svcParam} '${f.serviceName}' -${logParam} '${f.wrapperLogPath}'${dmzArgs}${mailArgs}`;
 
   const code =
 `# ============================================================
@@ -1921,7 +1796,7 @@ $result = Invoke-Command -ComputerName '${host}' -Credential $cred -ScriptBlock 
 
     $action   = New-ScheduledTaskAction \`
                     -Execute    'powershell.exe' \`
-                    -Argument   "-ExecutionPolicy Bypass -NonInteractive -File \`"$script\`" -MaxWaitSeconds $maxWait -PollIntervalSeconds $pollInt"
+                    -Argument   "-ExecutionPolicy Bypass -NonInteractive -File \`"$script\`" ${scriptArgs} -MaxWaitSeconds $maxWait -PollIntervalSeconds $pollInt"
 
     $trigger  = New-ScheduledTaskTrigger -Once -At ([datetime]$start)
 
@@ -2093,7 +1968,6 @@ function finishWorkflow(mailSent) {
     taskName:          f.taskName,
     scriptName:        f.scriptName,
     mailSent:          mailSent,
-    verifyStatus:      stepStatus[5] || 'unknown',
   });
   setStep(7);
 }
@@ -2105,8 +1979,6 @@ function startNewEntry() {
   ['f-mailTo','f-mailSubject','f-mailBody'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  [3,4,5].forEach(n => setBadge(n, null));
-  [3,4,5].forEach(n => { const btn = document.getElementById('next-'+n); if (btn) btn.disabled = true; });
   setStep(1);
 }
 
@@ -2177,6 +2049,7 @@ function renderSettingsTab() {
   renderTagList('list-schedulerLocations', s.schedulerLocations,      'schedulerLocations');
   renderTagList('list-scriptPaths',        s.scriptPaths    || [],    'scriptPaths');
   renderTagList('list-wrapperLogPaths',    s.wrapperLogPaths || [],   'wrapperLogPaths');
+  renderTagList('list-serviceNames',       s.serviceNames    || [],   'serviceNames');
   document.getElementById('s-smtpServer').value  = s.smtpServer  || '';
   document.getElementById('s-mailFrom').value    = s.mailFrom    || '';
   document.getElementById('s-mailTo').value      = s.mailTo      || '';
@@ -2366,6 +2239,10 @@ function refreshDropdowns() {
   // Wrapper Log-Pfade Datalist
   const wlDl = document.getElementById('dl-wrapperLogPaths');
   if (wlDl) wlDl.innerHTML = (s.wrapperLogPaths || []).map(p => `<option value="${p}">`).join('');
+
+  // Service Names Datalist
+  const snDl = document.getElementById('dl-serviceNames');
+  if (snDl) snDl.innerHTML = (s.serviceNames || []).map(p => `<option value="${p}">`).join('');
 }
 
 // ============================================================
@@ -2833,6 +2710,7 @@ der folgende Scheduled Task wurde erfolgreich am Remote-Host gesetzt:
   Scheduler Pfad  : \\${f.schedulerLocation}\\
   Startzeitpunkt  : ${f.startTime.replace('T', ' ')}
   PS-Skript       : ${f.scriptPath}\\${f.scriptName}
+  Service Name    : ${f.serviceName}
   Wrapper Log     : ${f.wrapperLogPath}
 
 Mit freundlichen Grüßen`;
@@ -2899,6 +2777,8 @@ async function autoRunAll() {
         host: host, user: f.remoteUser, password: f.remotePassword,
         taskName: f.taskName, taskPath: taskPath,
         scriptFull: scriptFull, startTime: startFmt,
+        serviceName: f.serviceName, wrapperLogPath: f.wrapperLogPath,
+        mailTo: s.mailTo || '', mailFrom: s.mailFrom || '', smtpServer: s.smtpServer || '',
         maxWaitSeconds: f.maxWaitSeconds, pollIntervalSeconds: f.pollIntervalSeconds,
       })
     }).then(r => r.json());
@@ -3038,10 +2918,12 @@ async function autoRunStep4(log) {
       host:       host,
       user:       f.remoteUser,
       password:   f.remotePassword,
-      taskName:   f.taskName,
-      taskPath:   taskPath,
-      scriptFull: scriptFull,
-      startTime:  startFmt,
+      taskName:       f.taskName,
+      taskPath:       taskPath,
+      scriptFull:     scriptFull,
+      startTime:      startFmt,
+      serviceName:    f.serviceName,
+      wrapperLogPath: f.wrapperLogPath,
     })
   });
   const data = await res.json();

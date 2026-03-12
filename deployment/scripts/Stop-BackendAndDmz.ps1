@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Stop-BackendAndDmz.ps1
 # Lobster-Dienst auf DMZ-Host und Backend-Host stoppen (Windows-Dienst).
 # Laeuft auf dem Backend-Host. Stoppt zuerst den DMZ-Dienst, dann den lokalen Backend-Dienst.
