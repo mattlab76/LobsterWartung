@@ -562,8 +562,16 @@
       <button class="btn btn-primary" onclick="doChangePassword()">Passwort &auml;ndern</button>
     </div>
 
-    <div id="login-api-warning" style="display:none; margin-top:16px; text-align:center; font-size:12px; color:var(--error);">
-      API nicht erreichbar. Bitte <code>Start-SchedulerManagerAPI.ps1</code> starten.
+    <div id="login-api-warning" style="display:none; margin-top:16px; text-align:center;">
+      <div style="font-size:12px; color:var(--error); margin-bottom:12px;">
+        API nicht erreichbar &ndash; Auto-Modus nicht verf&uuml;gbar.
+      </div>
+      <button class="btn btn-secondary" onclick="enterOfflineMode()" style="width:100%;">
+        &#128196; Ohne Login fortfahren (manueller Modus)
+      </button>
+      <div style="font-size:11px; color:#999; margin-top:8px;">
+        Im Offline-Modus k&ouml;nnen PowerShell-Befehle generiert und kopiert werden.
+      </div>
     </div>
   </div>
 </div>
@@ -884,8 +892,8 @@
 <div class="tab-content" id="tab-settings">
   <div class="settings-grid">
 
-    <!-- Eigenes Passwort aendern -->
-    <div class="card" style="grid-column:1/-1;">
+    <!-- Eigenes Passwort aendern (nur wenn API online) -->
+    <div class="card" style="grid-column:1/-1;" id="pw-change-card">
       <div class="card-header"><div class="card-header-left"><span>&#128274;</span><h3>Mein Passwort &auml;ndern</h3></div></div>
       <div class="card-body">
         <div class="form-grid">
@@ -1595,6 +1603,10 @@ function renderSummary() {
   } else {
     autoStatus.innerHTML = '<span style="color:var(--error);">&#9679; API Offline &ndash; nicht verf&uuml;gbar</span>';
     document.getElementById('mode-auto-card').style.opacity = '.5';
+    // Im Offline-Modus direkt Manuell vorselektieren
+    if (offlineMode && !selectedMode) {
+      selectMode('manual');
+    }
   }
 }
 
@@ -2457,6 +2469,11 @@ function onLoginSuccess() {
 }
 
 async function doLogout() {
+  if (offlineMode) {
+    offlineMode = false;
+    showLogin();
+    return;
+  }
   try {
     await fetch(API_URL + '/logout', { method: 'POST', headers: authHeaders() });
   } catch { /* ignore */ }
@@ -2584,6 +2601,28 @@ function initApp() {
   document.getElementById('f-startTime').addEventListener('change', updateDetectedScript);
   updateUserBadge();
   checkApiAvailable();
+
+  // Im Offline-Modus: API-abhaengige Settings-Karten ausblenden
+  if (offlineMode) {
+    const pwCard = document.getElementById('pw-change-card');
+    if (pwCard) pwCard.style.display = 'none';
+  }
+}
+
+let offlineMode = false;
+
+function enterOfflineMode() {
+  offlineMode = true;
+  apiAvailable = false;
+  hideLogin();
+  // Offline-User aus localStorage falls vorhanden
+  const s = loadSettings();
+  if (!s.currentUser) {
+    s.currentUser = 'Offline';
+    saveSettings(s);
+  }
+  initApp();
+  showToast('Offline-Modus \u2013 nur manueller Modus verf\u00fcgbar');
 }
 
 async function init() {
