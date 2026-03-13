@@ -79,7 +79,20 @@ param(
     [int]$TailLines           = 50,
 
     # Zeitfenster in dem der Start-Timestamp liegen muss (+/- Minuten)
-    [int]$TimeTolerance       = 5
+    [int]$TimeTolerance       = 5,
+
+    # ── Health-Check (Lobster Monitor REST API) ────────────────────────────
+    # URL zum Lobster Monitor-Endpunkt, z.B. http://host:8080/dw/monitor/v1?dw=true
+    [string]$HealthCheckUrl         = '',
+
+    # Zugangsdaten fuer Monitor-API (Lobster-User oder Monitorplain-Partner)
+    [pscredential]$HealthCheckCredential,
+
+    # Timeout fuer den HTTP-Request in Sekunden
+    [int]$HealthCheckTimeoutSec     = 15,
+
+    # Health-Check URL fuer den DMZ-Host (nur im Orchestrator-Modus)
+    [string]$DmzHealthCheckUrl      = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -246,6 +259,113 @@ function Wait-WrapperStarted {
     }
 }
 
+function Invoke-HealthCheck {
+    param(
+        [string]      $Url,
+        [pscredential]$Credential,
+        [int]         $TimeoutSec
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        return [PSCustomObject]@{ Ok=$true; Message='Health-Check uebersprungen (keine URL).'; Response='' }
+    }
+
+    try {
+        $params = @{
+            Uri             = $Url
+            TimeoutSec      = $TimeoutSec
+            UseBasicParsing = $true
+            ErrorAction     = 'Stop'
+        }
+        if ($Credential) {
+            $params.Credential = $Credential
+        }
+
+        $resp = Invoke-WebRequest @params
+        $body = $resp.Content
+
+        # Relevante Felder parsen
+        $fields = @{}
+        foreach ($line in ($body -split "`n")) {
+            if ($line -match '^\s*(.+?)\s*=\s*(.+?)\s*$') {
+                $fields[$Matches[1].Trim()] = $Matches[2].Trim()
+            }
+        }
+
+        # Kernpruefung: _data status = Alive
+        $dataStatus = $fields['_data status']
+        $dmzStatus  = $fields['_DMZ status']
+        $alive      = ($dataStatus -eq 'Alive') -or ($dmzStatus -eq 'Alive')
+
+        # Zusammenfassung bauen
+        $summary = @()
+        if ($dataStatus) { $summary += "_data: $dataStatus" }
+        if ($dmzStatus)  { $summary += "_DMZ: $dmzStatus" }
+        $httpSt = $fields['HTTP status']
+        if ($httpSt) { $summary += "HTTP: $httpSt" }
+        $license = $fields['License emergency mode active']
+        if ($license -and $license -ne 'false') { $summary += "LIZENZ-NOTFALL: $license" }
+
+        $msg = if ($alive) {
+            "Health-Check OK ($($summary -join ', '))"
+        } else {
+            "Health-Check FEHLGESCHLAGEN ($($summary -join ', '))"
+        }
+
+        return [PSCustomObject]@{
+            Ok       = $alive
+            Message  = $msg
+            Response = $body
+            Fields   = $fields
+        }
+
+    } catch {
+        return [PSCustomObject]@{
+            Ok       = $false
+            Message  = "Health-Check Fehler: $_"
+            Response = ''
+            Fields   = @{}
+        }
+    }
+}
+
+function Format-HealthCheckHtml {
+    param(
+        [string]$Label,
+        [string]$Response
+    )
+    if ([string]::IsNullOrWhiteSpace($Response)) { return '' }
+
+    $enc = [System.Net.WebUtility]
+
+    # Nur die wichtigsten Felder fuer die Mail filtern
+    $keep = @(
+        "Server's local time",
+        '_data status', '_DMZ status', 'HTTP status', 'startupservice status',
+        '_data queued jobs', '_data unresolved',
+        'Total memory', 'Used memory',
+        'Lobster IS Version', 'Lobster_data Version',
+        'License emergency mode active',
+        'FTP status', 'SSH status', 'failed services'
+    )
+    $filtered = @()
+    foreach ($line in ($Response -split "`n")) {
+        foreach ($k in $keep) {
+            if ($line -match "^\s*$([regex]::Escape($k))\s*=") {
+                $filtered += $line.Trim()
+                break
+            }
+        }
+    }
+    $display = if ($filtered.Count -gt 0) { $filtered -join "`n" } else { $Response.Trim() }
+
+    return @"
+  <h3 style="color:#555;margin-top:24px;">System-Status &ndash; $($enc::HtmlEncode($Label))</h3>
+  <pre style="background:#f0f7ff;border:1px solid #b0d0f0;padding:12px;font-size:12px;
+              font-family:Consolas,monospace;overflow-x:auto;max-width:800px;line-height:1.5;">$($enc::HtmlEncode($display))</pre>
+"@
+}
+
 function Format-LogTailHtml {
     param(
         [string]$Label,
@@ -271,8 +391,10 @@ function Send-ResultMail {
         [bool]  $Success,
         [string]$DmzMessage,
         [string]$BackendMessage,
-        [string[]]$BackendLogTail = @(),
-        [string[]]$DmzLogTail    = @()
+        [string[]]$BackendLogTail    = @(),
+        [string[]]$DmzLogTail       = @(),
+        [string]$BackendHealthResp   = '',
+        [string]$DmzHealthResp       = ''
     )
 
     $status = if ($Success) { 'OK' } else { 'FEHLER' }
@@ -283,8 +405,10 @@ function Send-ResultMail {
 
     $enc = [System.Net.WebUtility]
 
-    $backendLogHtml = Format-LogTailHtml -Label 'Backend' -Lines $BackendLogTail
-    $dmzLogHtml     = Format-LogTailHtml -Label 'DMZ'     -Lines $DmzLogTail
+    $backendLogHtml    = Format-LogTailHtml    -Label 'Backend' -Lines $BackendLogTail
+    $dmzLogHtml        = Format-LogTailHtml    -Label 'DMZ'     -Lines $DmzLogTail
+    $backendHealthHtml = Format-HealthCheckHtml -Label 'Backend' -Response $BackendHealthResp
+    $dmzHealthHtml     = Format-HealthCheckHtml -Label 'DMZ'     -Response $DmzHealthResp
 
     $body = @"
 <html>
@@ -305,6 +429,8 @@ function Send-ResultMail {
       <td>$($enc::HtmlEncode($DmzMessage))</td>
     </tr>
   </table>
+$backendHealthHtml
+$dmzHealthHtml
 $backendLogHtml
 $dmzLogHtml
   <p style="color:#999;font-size:11px;margin-top:20px;">
@@ -350,24 +476,32 @@ if (-not $orchestratorMode) {
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($checkResult.Message)"
 
+    # Health-Check (immer, auch bei AlreadyRunning)
+    $healthResult = Invoke-HealthCheck -Url $HealthCheckUrl -Credential $HealthCheckCredential -TimeoutSec $HealthCheckTimeoutSec
+    if ($HealthCheckUrl) {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($healthResult.Message)"
+    }
+    $overallOk = $checkResult.Ok -and $healthResult.Ok
+
     if ($MailTo -and $SmtpServer) {
         Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail senden ..."
         Send-ResultMail `
-            -To              $MailTo `
-            -From            $MailFrom `
-            -Smtp            $SmtpServer `
-            -Success         $checkResult.Ok `
-            -DmzMessage      'n/a (Backend-Only)' `
-            -BackendMessage  $checkResult.Message `
-            -BackendLogTail  $checkResult.LogTail
+            -To               $MailTo `
+            -From             $MailFrom `
+            -Smtp             $SmtpServer `
+            -Success          $overallOk `
+            -DmzMessage       'n/a (Backend-Only)' `
+            -BackendMessage   "$($checkResult.Message) $($healthResult.Message)" `
+            -BackendLogTail   $checkResult.LogTail `
+            -BackendHealthResp $healthResult.Response
         Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail gesendet an: $MailTo"
     }
 
     # Nur Ergebnis-Objekt zurueckgeben – kein Log-Transfer zum rufenden Host
     return [PSCustomObject]@{
         Host    = $env:COMPUTERNAME
-        Ok      = $checkResult.Ok
-        Message = if ($checkResult.Ok) { $checkResult.Message } else { "FEHLER: $($checkResult.Message)" }
+        Ok      = $overallOk
+        Message = if ($overallOk) { "$($checkResult.Message) $($healthResult.Message)" } else { "FEHLER: $($checkResult.Message) $($healthResult.Message)" }
         LogTail = $checkResult.LogTail
     }
 }
@@ -396,19 +530,26 @@ if ($startResult.AlreadyRunning) {
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Backend: $($backendResult.Message)"
 
+# Health-Check Backend (immer, auch bei AlreadyRunning)
+$backendHealth = Invoke-HealthCheck -Url $HealthCheckUrl -Credential $HealthCheckCredential -TimeoutSec $HealthCheckTimeoutSec
+if ($HealthCheckUrl) {
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Backend Health: $($backendHealth.Message)"
+}
+
 if (-not $backendResult.Ok) {
     Write-Warning "Backend-Start fehlgeschlagen – DMZ-Dienst wird NICHT gestartet."
 
     if ($MailTo -and $SmtpServer) {
         Write-Host "=== [2/3] Mail senden (Fehler) ==="
         Send-ResultMail `
-            -To              $MailTo `
-            -From            $MailFrom `
-            -Smtp            $SmtpServer `
-            -Success         $false `
-            -BackendMessage  $backendResult.Message `
-            -DmzMessage      "Nicht ausgefuehrt (Backend fehlgeschlagen)." `
-            -BackendLogTail  $backendResult.LogTail
+            -To                $MailTo `
+            -From              $MailFrom `
+            -Smtp              $SmtpServer `
+            -Success           $false `
+            -BackendMessage    "$($backendResult.Message) $($backendHealth.Message)" `
+            -DmzMessage        "Nicht ausgefuehrt (Backend fehlgeschlagen)." `
+            -BackendLogTail    $backendResult.LogTail `
+            -BackendHealthResp $backendHealth.Response
     }
 
     exit 1
@@ -445,20 +586,28 @@ try {
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] DMZ: $($dmzResult.Message)"
 
-$overallSuccess = $backendResult.Ok -and $dmzResult.Ok
+# Health-Check DMZ (immer, auch bei AlreadyRunning)
+$dmzHealth = Invoke-HealthCheck -Url $DmzHealthCheckUrl -Credential $HealthCheckCredential -TimeoutSec $HealthCheckTimeoutSec
+if ($DmzHealthCheckUrl) {
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] DMZ Health: $($dmzHealth.Message)"
+}
+
+$overallSuccess = $backendResult.Ok -and $dmzResult.Ok -and $backendHealth.Ok -and $dmzHealth.Ok
 
 if ($MailTo -and $SmtpServer) {
     Write-Host ""
     Write-Host "=== [3/3] Mail senden ==="
     Send-ResultMail `
-        -To              $MailTo `
-        -From            $MailFrom `
-        -Smtp            $SmtpServer `
-        -Success         $overallSuccess `
-        -BackendMessage  $backendResult.Message `
-        -DmzMessage      $dmzResult.Message `
-        -BackendLogTail  $backendResult.LogTail `
-        -DmzLogTail      $(if ($dmzResult.LogTail) { $dmzResult.LogTail } else { @() })
+        -To                $MailTo `
+        -From              $MailFrom `
+        -Smtp              $SmtpServer `
+        -Success           $overallSuccess `
+        -BackendMessage    "$($backendResult.Message) $($backendHealth.Message)" `
+        -DmzMessage        "$($dmzResult.Message) $($dmzHealth.Message)" `
+        -BackendLogTail    $backendResult.LogTail `
+        -DmzLogTail        $(if ($dmzResult.LogTail) { $dmzResult.LogTail } else { @() }) `
+        -BackendHealthResp $backendHealth.Response `
+        -DmzHealthResp     $dmzHealth.Response
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail gesendet an: $MailTo"
 }
 

@@ -12,9 +12,17 @@
     [string] $MailTo              = '',
     [string] $MailFrom            = 'noreply@firma.local',
     [string] $SmtpServer          = '',
+    [string] $HealthCheckUrl      = '',
+    [string] $DmzHealthCheckUrl   = '',
+    [pscredential] $HealthCheckCredential,
     [int]    $MaxWaitSeconds      = 300,
     [int]    $PollIntervalSeconds = 15
 )
+$hcParams = @{}
+if ($HealthCheckUrl)        { $hcParams.HealthCheckUrl        = $HealthCheckUrl }
+if ($DmzHealthCheckUrl)     { $hcParams.DmzHealthCheckUrl     = $DmzHealthCheckUrl }
+if ($HealthCheckCredential) { $hcParams.HealthCheckCredential = $HealthCheckCredential }
+
 & "$PSScriptRoot\..\Start-LobsterService.ps1" `
     -ServiceName          $BackendServiceName `
     -WrapperLogPath       $BackendWrapperLogPath `
@@ -26,5 +34,6 @@
     -MailFrom             $MailFrom `
     -SmtpServer           $SmtpServer `
     -MaxWaitSeconds       $MaxWaitSeconds `
-    -PollIntervalSeconds  $PollIntervalSeconds
+    -PollIntervalSeconds  $PollIntervalSeconds `
+    @hcParams
 exit $LASTEXITCODE

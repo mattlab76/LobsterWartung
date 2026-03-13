@@ -720,6 +720,12 @@
 
         <div class="section-label">Erweiterte Einstellungen</div>
         <div class="form-grid">
+          <div class="form-group" id="group-healthCheckUrl">
+            <label>Health Check URL</label>
+            <input type="text" id="f-healthCheckUrl" list="dl-healthCheckUrls" placeholder="z.B. http://host:8080/dw/monitor/v1?dw=true" autocomplete="off" onchange="onHealthCheckUrlChange()" />
+            <datalist id="dl-healthCheckUrls"></datalist>
+            <span class="form-hint">Lobster Monitor REST API URL &ndash; wird nach dem Start zur Verifizierung abgefragt. Wenn eine Instanz-Zuordnung existiert, werden Backend/DMZ Host automatisch bef&uuml;llt.</span>
+          </div>
           <div class="form-group">
             <label>Max. Wartezeit auf Wrapper-Stop (Sekunden)</label>
             <input type="number" id="f-maxWaitSeconds" value="300" min="30" max="3600" />
@@ -1107,6 +1113,48 @@
       </div>
     </div>
 
+    <!-- Instanz-Zuordnung (Health Check URL → Hosts) — spans full width -->
+    <div class="card" style="grid-column:1/-1;">
+      <div class="card-header"><div class="card-header-left"><span>&#127760;</span><h3>Instanz-Zuordnung (URL &rarr; Hosts)</h3></div></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+          Ordnet externe Health-Check-URLs den internen Backend- und DMZ-Hostnamen zu.
+          Im Formular werden Backend/DMZ Host automatisch bef&uuml;llt wenn eine passende URL gew&auml;hlt wird.
+        </p>
+        <div style="overflow-x:auto;">
+          <table id="instance-mapping-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:var(--bg-secondary);">
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Health Check URL</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">Backend Host</th>
+                <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);">DMZ Host</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:70px;"></th>
+              </tr>
+            </thead>
+            <tbody id="instance-mapping-rows"></tbody>
+          </table>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:12px;align-items:end;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Health Check URL</label>
+            <input type="text" id="new-im-url" placeholder="z.B. http://editest.firma.com:8080/dw/monitor/v1?dw=true" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addInstanceMapping()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Backend Host</label>
+            <input type="text" id="new-im-backend" placeholder="z.B. aqlbt101.bmlc.local" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addInstanceMapping()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">DMZ Host</label>
+            <input type="text" id="new-im-dmz" placeholder="z.B. aqlbt102.bmlc.local" style="width:100%;box-sizing:border-box;"
+                   onkeydown="if(event.key==='Enter') addInstanceMapping()" />
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addInstanceMapping()">+ Hinzuf&uuml;gen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Backup / Import — spans full width -->
     <div class="card" style="grid-column:1/-1;">
       <div class="card-header"><div class="card-header-left"><span>&#128229;</span><h3>Backup &amp; Import</h3></div></div>
@@ -1212,6 +1260,7 @@ function defaultSettings() {
       { mt: 'Start-Wartung',   it: 'Backend (Backend via Webservice)',          script: 'scripts\\Start-Backend.ps1' },
       { mt: 'Start-Wartung',   it: 'DMZ',                                      script: 'scripts\\Start-Dmz.ps1' },
     ],
+    instanceMappings: [],
   };
 }
 
@@ -1245,7 +1294,7 @@ function migrateSettings(s) {
   }
 
   // Typ-Guard: Array-Felder sicherstellen (falls JSON korrupt)
-  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','serviceNames','scriptMappings'].forEach(k => {
+  ['backendHosts','dmzHosts','schedulerLocations','scriptPaths','wrapperLogPaths','serviceNames','scriptMappings','instanceMappings'].forEach(k => {
     if (!Array.isArray(s[k])) { s[k] = []; changed = true; }
   });
 
@@ -1440,6 +1489,7 @@ function getFormValues() {
     serviceName:       document.getElementById('f-serviceName').value.trim(),
     scriptName:        document.getElementById('f-detectedScript').value.trim(),
     taskName:          document.getElementById('f-taskName').value.trim(),
+    healthCheckUrl:    document.getElementById('f-healthCheckUrl').value.trim(),
     maxWaitSeconds:    parseInt(document.getElementById('f-maxWaitSeconds').value)    || 300,
     pollIntervalSeconds: parseInt(document.getElementById('f-pollIntervalSeconds').value) || 15,
   };
@@ -1580,6 +1630,7 @@ function renderSummary() {
     ['Wrapper Log Pfad (Remote)', f.wrapperLogPath],
     ['Windows Service Name',      f.serviceName],
     ['PS-Skript Name',            f.scriptName],
+    ['Health Check URL',          f.healthCheckUrl || '&ndash;'],
     ['Max. Wartezeit',            f.maxWaitSeconds + ' s'],
     ['Pr&uuml;fintervall',        f.pollIntervalSeconds + ' s'],
   ];
@@ -1644,6 +1695,7 @@ function renderManualFullCommand() {
 
   // Script-Parameter je nach Skript-Typ
   const isBackendAndDmz = /BackendAndDmz|BackendViaWebservice/i.test(f.scriptName || '');
+  const isStartScript   = /Start-/i.test(f.scriptName || '');
   const svcParam  = isBackendAndDmz ? 'BackendServiceName' : 'ServiceName';
   const logParam  = isBackendAndDmz ? 'BackendWrapperLogPath' : 'WrapperLogPath';
   const dmzArgs   = isBackendAndDmz && f.dmzHost ? ` -DmzHost '${f.dmzHost}'` : '';
@@ -1654,10 +1706,26 @@ function renderManualFullCommand() {
     ? ` -MailTo '${mailTo}' -MailFrom '${mailFrom}' -SmtpServer '${smtp}'`
     : '';
 
+  // Health Check URL (nur bei Start-Scripts)
+  let hcArgs = '';
+  if (isStartScript && f.healthCheckUrl) {
+    hcArgs += ` -HealthCheckUrl '${f.healthCheckUrl}'`;
+    // DMZ Health Check URL: gleiche Basis-URL mit DMZ-Host ersetzen
+    const match = (s.instanceMappings || []).find(m => m.url === f.healthCheckUrl);
+    if (isBackendAndDmz && match && match.dmzHost) {
+      // DMZ-URL aus Backend-URL ableiten: Host-Teil ersetzen
+      try {
+        const u = new URL(f.healthCheckUrl);
+        u.hostname = match.dmzHost;
+        hcArgs += ` -DmzHealthCheckUrl '${u.toString()}'`;
+      } catch(e) { /* URL ungültig, DMZ-HC überspringen */ }
+    }
+  }
+
   const scriptParams =
     ` -${svcParam} "${f.serviceName}"` +
     ` -${logParam} "${f.wrapperLogPath}"` +
-    dmzArgs + mailArgs +
+    dmzArgs + mailArgs + hcArgs +
     ` -MaxWaitSeconds ${f.maxWaitSeconds} -PollIntervalSeconds ${f.pollIntervalSeconds}`;
 
   // Info-Tabelle befüllen
@@ -1770,6 +1838,7 @@ function renderCreateTaskCode() {
 
   // Script-Parameter je nach Skript-Typ (BackendAndDmz vs. einfache Skripte)
   const isBackendAndDmz = /BackendAndDmz|BackendViaWebservice/i.test(f.scriptName || '');
+  const isStartScript   = /Start-/i.test(f.scriptName || '');
   const svcParam  = isBackendAndDmz ? 'BackendServiceName' : 'ServiceName';
   const logParam  = isBackendAndDmz ? 'BackendWrapperLogPath' : 'WrapperLogPath';
   const dmzArgs   = isBackendAndDmz && f.dmzHost ? ` -DmzHost '${f.dmzHost}'` : '';
@@ -1779,7 +1848,22 @@ function renderCreateTaskCode() {
   const mailArgs  = mailTo && smtp
     ? ` -MailTo '${mailTo}' -MailFrom '${mailFrom}' -SmtpServer '${smtp}'`
     : '';
-  const scriptArgs = `-${svcParam} '${f.serviceName}' -${logParam} '${f.wrapperLogPath}'${dmzArgs}${mailArgs}`;
+
+  // Health Check URL (nur bei Start-Scripts)
+  let hcArgs = '';
+  if (isStartScript && f.healthCheckUrl) {
+    hcArgs += ` -HealthCheckUrl '${f.healthCheckUrl}'`;
+    const match = (s.instanceMappings || []).find(m => m.url === f.healthCheckUrl);
+    if (isBackendAndDmz && match && match.dmzHost) {
+      try {
+        const u = new URL(f.healthCheckUrl);
+        u.hostname = match.dmzHost;
+        hcArgs += ` -DmzHealthCheckUrl '${u.toString()}'`;
+      } catch(e) { /* URL ungültig */ }
+    }
+  }
+
+  const scriptArgs = `-${svcParam} '${f.serviceName}' -${logParam} '${f.wrapperLogPath}'${dmzArgs}${mailArgs}${hcArgs}`;
 
   const code =
 `# ============================================================
@@ -2067,6 +2151,7 @@ function renderSettingsTab() {
   document.getElementById('s-mailTo').value      = s.mailTo      || '';
   document.getElementById('s-defaultUser').value  = s.defaultUser    || '';
   renderMappingTable(s.scriptMappings || []);
+  renderInstanceMappingTable(s.instanceMappings || []);
   updateUserBadge();
   loadUsersTable();
 }
@@ -2129,6 +2214,90 @@ function editScriptMapping(idx) {
   document.getElementById('new-map-mt').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   document.getElementById('new-map-mt').focus();
   showToast('Eintrag geladen \u2013 jetzt bearbeiten und speichern');
+}
+
+// ============================================================
+// INSTANCE MAPPING (URL → Backend/DMZ Hosts)
+// ============================================================
+function renderInstanceMappingTable(mappings) {
+  const tbody = document.getElementById('instance-mapping-rows');
+  if (!tbody) return;
+  if (!mappings || mappings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:10px;color:var(--text-muted);font-size:13px;">Keine Eintr\u00e4ge</td></tr>';
+    return;
+  }
+  tbody.innerHTML = mappings.map((m, i) => `
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 10px;font-family:monospace;font-size:12px;">${m.url}</td>
+      <td style="padding:7px 10px;">${m.backendHost}</td>
+      <td style="padding:7px 10px;">${m.dmzHost || '\u2013'}</td>
+      <td style="padding:7px 10px;text-align:center;white-space:nowrap;">
+        <span style="cursor:pointer;color:var(--accent);font-size:15px;margin-right:8px;" onclick="editInstanceMapping(${i})" title="Bearbeiten">&#9998;</span>
+        <span style="cursor:pointer;color:var(--error);font-size:16px;" onclick="removeInstanceMapping(${i})" title="Entfernen">&times;</span>
+      </td>
+    </tr>`).join('');
+}
+
+function addInstanceMapping() {
+  const url     = document.getElementById('new-im-url').value.trim();
+  const backend = document.getElementById('new-im-backend').value.trim();
+  const dmz     = document.getElementById('new-im-dmz').value.trim();
+  if (!url || !backend) { showToast('URL und Backend Host sind Pflichtfelder'); return; }
+  const s = loadSettings();
+  if (!s.instanceMappings) s.instanceMappings = [];
+  const exists = s.instanceMappings.some(m => m.url === url);
+  if (exists) { showToast('Diese URL existiert bereits'); return; }
+  s.instanceMappings.push({ url, backendHost: backend, dmzHost: dmz });
+  saveSettings(s);
+  document.getElementById('new-im-url').value     = '';
+  document.getElementById('new-im-backend').value = '';
+  document.getElementById('new-im-dmz').value     = '';
+  renderSettingsTab();
+  refreshDropdowns();
+  showToast('Instanz-Zuordnung gespeichert');
+}
+
+function removeInstanceMapping(idx) {
+  const s = loadSettings();
+  s.instanceMappings.splice(idx, 1);
+  saveSettings(s);
+  renderSettingsTab();
+  refreshDropdowns();
+}
+
+function editInstanceMapping(idx) {
+  const s = loadSettings();
+  const m = (s.instanceMappings || [])[idx];
+  if (!m) return;
+  document.getElementById('new-im-url').value     = m.url;
+  document.getElementById('new-im-backend').value = m.backendHost;
+  document.getElementById('new-im-dmz').value     = m.dmzHost || '';
+  s.instanceMappings.splice(idx, 1);
+  saveSettings(s);
+  renderInstanceMappingTable(s.instanceMappings);
+  document.getElementById('new-im-url').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('new-im-url').focus();
+  showToast('Eintrag geladen \u2013 jetzt bearbeiten und speichern');
+}
+
+function onHealthCheckUrlChange() {
+  const url = document.getElementById('f-healthCheckUrl').value.trim();
+  if (!url) return;
+  const s = loadSettings();
+  const match = (s.instanceMappings || []).find(m => m.url === url);
+  if (match) {
+    // Backend Host setzen (wenn im Dropdown vorhanden)
+    const bSel = document.getElementById('f-backendHost');
+    if (match.backendHost && [...bSel.options].some(o => o.value === match.backendHost)) {
+      bSel.value = match.backendHost;
+    }
+    // DMZ Host setzen (wenn im Dropdown vorhanden)
+    const dSel = document.getElementById('f-dmzHost');
+    if (match.dmzHost && [...dSel.options].some(o => o.value === match.dmzHost)) {
+      dSel.value = match.dmzHost;
+    }
+    showToast('Hosts aus Instanz-Zuordnung \u00fcbernommen');
+  }
 }
 
 function renderTagList(containerId, items, listKey) {
@@ -2255,6 +2424,10 @@ function refreshDropdowns() {
   // Service Names Datalist
   const snDl = document.getElementById('dl-serviceNames');
   if (snDl) snDl.innerHTML = (s.serviceNames || []).map(p => `<option value="${p}">`).join('');
+
+  // Health Check URLs Datalist (aus instanceMappings)
+  const hcDl = document.getElementById('dl-healthCheckUrls');
+  if (hcDl) hcDl.innerHTML = (s.instanceMappings || []).map(m => `<option value="${m.url}">`).join('');
 }
 
 // ============================================================
