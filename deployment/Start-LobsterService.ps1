@@ -93,13 +93,70 @@ function Start-LobsterServiceLocally {
     $svc = Get-Service -Name $Name -ErrorAction Stop
 
     if ($svc.Status -eq 'Running') {
-        return [PSCustomObject]@{ Ok=$true; Message="Dienst laeuft bereits: $Name" }
+        return [PSCustomObject]@{ Ok=$true; AlreadyRunning=$true; Message="Dienst laeuft bereits: $Name" }
     }
 
     Set-Service  -Name $Name -StartupType Automatic -ErrorAction Stop
     Start-Service -Name $Name -ErrorAction Stop
 
-    return [PSCustomObject]@{ Ok=$true; Message="Dienst gestartet: $Name" }
+    return [PSCustomObject]@{ Ok=$true; AlreadyRunning=$false; Message="Dienst gestartet: $Name" }
+}
+
+function Get-WrapperLastStatus {
+    param(
+        [string] $LogPath,
+        [int]    $Tail
+    )
+
+    if (-not (Test-Path -LiteralPath $LogPath)) {
+        return [PSCustomObject]@{
+            Ok      = $true
+            Message = "Dienst laeuft bereits. Wrapper-Log nicht gefunden: $LogPath"
+            LogTail = @()
+        }
+    }
+
+    $lines = @(Get-Content -LiteralPath $LogPath -Tail $Tail -ErrorAction Stop)
+
+    # Letzten "Wrapper Stopped" und "system is ready" suchen (ohne Datum-Filter)
+    $stoppedRx = [regex]::new(
+        '^\s*STATUS\s*\|\s*wrapper\s*\|\s*(\d{4})[/.](\d{2})[/.](\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*\|\s*<--\s*Wrapper\s+Stopped',
+        'IgnoreCase')
+    $readyRx   = [regex]::new(
+        '^\s*INFO\s*\|\s*jvm\s+\d+\s*\|\s*(\d{4})[/.](\d{2})[/.](\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*\|\s*Integration Server \(IS\) started in \d+ ms,\s*system is ready',
+        'IgnoreCase')
+
+    $lastStop  = $null
+    $lastStart = $null
+    for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+        if (-not $lastStop) {
+            $m = $stoppedRx.Match($lines[$i])
+            if ($m.Success) {
+                $lastStop = [datetime]::new(
+                    [int]$m.Groups[1].Value, [int]$m.Groups[2].Value, [int]$m.Groups[3].Value,
+                    [int]$m.Groups[4].Value, [int]$m.Groups[5].Value, [int]$m.Groups[6].Value)
+            }
+        }
+        if (-not $lastStart) {
+            $m = $readyRx.Match($lines[$i])
+            if ($m.Success) {
+                $lastStart = [datetime]::new(
+                    [int]$m.Groups[1].Value, [int]$m.Groups[2].Value, [int]$m.Groups[3].Value,
+                    [int]$m.Groups[4].Value, [int]$m.Groups[5].Value, [int]$m.Groups[6].Value)
+            }
+        }
+        if ($lastStop -and $lastStart) { break }
+    }
+
+    $parts = @("Dienst laeuft bereits.")
+    if ($lastStop)  { $parts += "Letzter Stopp: $($lastStop.ToString('dd.MM.yyyy HH:mm:ss'))" }
+    if ($lastStart) { $parts += "Letzter Start: $($lastStart.ToString('dd.MM.yyyy HH:mm:ss'))" }
+
+    return [PSCustomObject]@{
+        Ok      = $true
+        Message = $parts -join ' '
+        LogTail = $lines
+    }
 }
 
 function Wait-WrapperStarted {
@@ -277,14 +334,19 @@ if (-not $orchestratorMode) {
     $startResult = Start-LobsterServiceLocally -Name $ServiceName
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($startResult.Message)"
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
-    $checkResult = Wait-WrapperStarted `
-        -LogPath          $WrapperLogPath `
-        -MaxSeconds       $MaxWaitSeconds `
-        -PollSeconds      $PollIntervalSeconds `
-        -Tail             $TailLines `
-        -Since            $scriptStart `
-        -ToleranceMinutes $TimeTolerance
+    if ($startResult.AlreadyRunning) {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Lese letzten Status aus Wrapper-Log ..."
+        $checkResult = Get-WrapperLastStatus -LogPath $WrapperLogPath -Tail $TailLines
+    } else {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
+        $checkResult = Wait-WrapperStarted `
+            -LogPath          $WrapperLogPath `
+            -MaxSeconds       $MaxWaitSeconds `
+            -PollSeconds      $PollIntervalSeconds `
+            -Tail             $TailLines `
+            -Since            $scriptStart `
+            -ToleranceMinutes $TimeTolerance
+    }
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($checkResult.Message)"
 
@@ -318,14 +380,19 @@ Write-Host "=== [1/3] Backend-Dienst starten (lokal) ==="
 $startResult   = Start-LobsterServiceLocally -Name $ServiceName
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($startResult.Message)"
 
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
-$backendResult = Wait-WrapperStarted `
-    -LogPath          $WrapperLogPath `
-    -MaxSeconds       $MaxWaitSeconds `
-    -PollSeconds      $PollIntervalSeconds `
-    -Tail             $TailLines `
-    -Since            $scriptStart `
-    -ToleranceMinutes $TimeTolerance
+if ($startResult.AlreadyRunning) {
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Lese letzten Status aus Wrapper-Log ..."
+    $backendResult = Get-WrapperLastStatus -LogPath $WrapperLogPath -Tail $TailLines
+} else {
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
+    $backendResult = Wait-WrapperStarted `
+        -LogPath          $WrapperLogPath `
+        -MaxSeconds       $MaxWaitSeconds `
+        -PollSeconds      $PollIntervalSeconds `
+        -Tail             $TailLines `
+        -Since            $scriptStart `
+        -ToleranceMinutes $TimeTolerance
+}
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Backend: $($backendResult.Message)"
 
