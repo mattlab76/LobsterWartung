@@ -1,46 +1,45 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Lobster-Dienst herunterfahren und Java-Wrapper-Stop verifizieren.
+    Lobster-Dienst starten und Java-Wrapper-Start verifizieren.
 
 .DESCRIPTION
     Wird auf dem jeweiligen Host lokal ausgefuehrt.
 
     OHNE -DmzHost (DMZ-Modus / Standalone):
-        - Stoppt den lokalen Lobster-Dienst
-        - Prueft das Wrapper-Log bis "Wrapper Stopped" bestaetigt ist
+        - Startet den lokalen Lobster-Dienst
+        - Prueft das Wrapper-Log bis "Integration Server (IS) started" bestaetigt ist
         - Gibt ein Ergebnis-Objekt zurueck (fuer Invoke-Command auf Backend-Host)
 
     MIT -DmzHost (Backend-Modus / Orchestrator):
-        - Startet zuerst den Shutdown auf dem DMZ-Host via Invoke-Command
-        - Wartet auf das Ergebnis (nur kleines Ergebnis-Objekt, kein Log-Transfer)
-        - Nur wenn DMZ OK: stoppt den lokalen Backend-Dienst und prueft Wrapper-Log
+        - Startet zuerst den lokalen Backend-Dienst und prueft Wrapper-Log
+        - Nur wenn Backend OK: startet den DMZ-Host via Invoke-Command
         - Sendet Ergebnis-Mail (OK oder Fehler)
 
 .NOTES
     Deployment:
-        Backend-Host: z.B. C:\LobsterMaintenance\Stop-LobsterService.ps1
-        DMZ-Host:     z.B. C:\LobsterMaintenance\Stop-LobsterService.ps1
+        Backend-Host: z.B. C:\LobsterMaintenance\Start-LobsterService.ps1
+        DMZ-Host:     z.B. C:\LobsterMaintenance\Start-LobsterService.ps1
 
     Der Scheduled Task wird vom Lobster Scheduler Manager angelegt und
     ruft dieses Skript auf dem Backend-Host mit allen Parametern auf.
 
 .EXAMPLE
     # Standalone / DMZ-Modus (direkt auf einem Host ausfuehren):
-    .\Stop-LobsterService.ps1 `
+    .\Start-LobsterService.ps1 `
         -ServiceName    "Lobster Integration Server" `
         -WrapperLogPath "D:\Lobster\IS\logs\wrapper.log"
 
 .EXAMPLE
-    # Backend-Modus (Orchestrator) – startet DMZ-Shutdown, dann lokal, dann Mail:
-    .\Stop-LobsterService.ps1 `
+    # Backend-Modus (Orchestrator) – startet Backend, dann DMZ, dann Mail:
+    .\Start-LobsterService.ps1 `
         -ServiceName       "Lobster Integration Server" `
         -WrapperLogPath    "D:\Lobster\IS\logs\wrapper.log" `
         -DmzHost           "dmz-server01" `
         -DmzCredential     (Get-Credential) `
         -DmzServiceName    "Lobster Integration Server" `
         -DmzWrapperLogPath "D:\Lobster\IS\logs\wrapper.log" `
-        -DmzScriptPath     "C:\LobsterMaintenance\Stop-LobsterService.ps1" `
+        -DmzScriptPath     "C:\LobsterMaintenance\Start-LobsterService.ps1" `
         -MailTo            "admin@firma.local" `
         -SmtpServer        "smtp.firma.local"
 #>
@@ -55,7 +54,7 @@ param(
     [string]$WrapperLogPath,
 
     # ── Orchestrator-Modus: nur auf Backend-Host setzen ──────────────────────
-    # Wenn gesetzt, wird zuerst der DMZ-Host heruntergefahren.
+    # Wenn gesetzt, wird nach dem Backend-Start auch der DMZ-Host gestartet.
     [string]$DmzHost            = '',
     [pscredential]$DmzCredential,
     [string]$DmzServiceName     = '',
@@ -70,7 +69,7 @@ param(
     [string]$SmtpServer  = '',
 
     # ── Wrapper-Log-Pruefung ─────────────────────────────────────────────────
-    # Maximale Wartezeit bis "Wrapper Stopped" im Log erscheint
+    # Maximale Wartezeit bis "system is ready" im Log erscheint
     [int]$MaxWaitSeconds      = 300,
 
     # Intervall zwischen Log-Pruefungen
@@ -79,7 +78,7 @@ param(
     # Anzahl der Zeilen die vom Log-Ende gelesen werden
     [int]$TailLines           = 50,
 
-    # Zeitfenster in dem der Wrapper-Stopp-Timestamp liegen muss (+/- Minuten)
+    # Zeitfenster in dem der Start-Timestamp liegen muss (+/- Minuten)
     [int]$TimeTolerance       = 5
 )
 
@@ -88,22 +87,22 @@ Set-StrictMode -Version Latest
 
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
-function Stop-LobsterServiceLocally {
+function Start-LobsterServiceLocally {
     param([string]$Name)
 
     $svc = Get-Service -Name $Name -ErrorAction Stop
 
-    if ($svc.Status -eq 'Stopped') {
-        return [PSCustomObject]@{ Ok=$true; Message="Dienst war bereits gestoppt: $Name" }
+    if ($svc.Status -eq 'Running') {
+        return [PSCustomObject]@{ Ok=$true; Message="Dienst laeuft bereits: $Name" }
     }
 
-    Stop-Service -Name $Name -Force -ErrorAction Stop
-    Set-Service  -Name $Name -StartupType Manual -ErrorAction Stop
+    Set-Service  -Name $Name -StartupType Automatic -ErrorAction Stop
+    Start-Service -Name $Name -ErrorAction Stop
 
-    return [PSCustomObject]@{ Ok=$true; Message="Dienst gestoppt: $Name" }
+    return [PSCustomObject]@{ Ok=$true; Message="Dienst gestartet: $Name" }
 }
 
-function Wait-WrapperStopped {
+function Wait-WrapperStarted {
     param(
         [string]  $LogPath,
         [int]     $MaxSeconds,
@@ -120,41 +119,44 @@ function Wait-WrapperStopped {
     $todayPart = $Since.ToString('yyyy') + '[/.]' + $Since.ToString('MM') + '[/.]' + $Since.ToString('dd')
     $deadline  = $Since.AddSeconds($MaxSeconds)
 
+    # Erfolgsmuster: "Integration Server (IS) started in NNN ms, system is ready..."
+    $readyRx = [regex]::new(
+        "^\s*INFO\s*\|\s*jvm\s+\d+\s*\|\s*${todayPart}\s+(\d{2}):(\d{2}):(\d{2})\s*\|\s*Integration Server \(IS\) started in \d+ ms,\s*system is ready",
+        'IgnoreCase')
+
+    # Fehlermuster: Wrapper wurde nach Start wieder gestoppt
     $stoppedRx = [regex]::new(
         "^\s*STATUS\s*\|\s*wrapper\s*\|\s*${todayPart}\s+\d{2}:\d{2}:\d{2}\s*\|\s*<--\s*Wrapper\s+Stopped\s*$",
         'IgnoreCase')
 
-    $startedRx = [regex]::new(
-        "^\s*STATUS\s*\|\s*wrapper\s*\|\s*${todayPart}\s+\d{2}:\d{2}:\d{2}\s*\|\s*-->\s*Wrapper\s+Started\b",
-        'IgnoreCase')
-
+    # Timestamp-Extraktion aus der INFO-Zeile
     $tsRx = [regex]::new(
-        "^\s*STATUS\s*\|\s*wrapper\s*\|\s*(\d{4})[/.](\d{2})[/.](\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*\|",
+        "^\s*INFO\s*\|\s*jvm\s+\d+\s*\|\s*(\d{4})[/.](\d{2})[/.](\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*\|",
         'IgnoreCase')
 
     do {
         $lines = @(Get-Content -LiteralPath $LogPath -Tail $Tail -ErrorAction Stop)
 
-        # Letzten "Wrapper Stopped" und "Wrapper Started" Index suchen
+        # Letzten "system is ready" und "Wrapper Stopped" Index suchen
+        $lastReadyIdx = -1
         $lastStopIdx  = -1
-        $lastStartIdx = -1
         for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            if ($lastReadyIdx -lt 0 -and $readyRx.IsMatch($lines[$i])) { $lastReadyIdx = $i }
             if ($lastStopIdx  -lt 0 -and $stoppedRx.IsMatch($lines[$i])) { $lastStopIdx  = $i }
-            if ($lastStartIdx -lt 0 -and $startedRx.IsMatch($lines[$i])) { $lastStartIdx = $i }
-            if ($lastStopIdx -ge 0 -and $lastStartIdx -ge 0) { break }
+            if ($lastReadyIdx -ge 0 -and $lastStopIdx -ge 0) { break }
         }
 
-        # Fehler: Wrapper wurde nach Stopp sofort wieder gestartet
-        if ($lastStopIdx -ge 0 -and $lastStartIdx -gt $lastStopIdx) {
+        # Fehler: Wrapper wurde nach Start wieder gestoppt
+        if ($lastReadyIdx -ge 0 -and $lastStopIdx -gt $lastReadyIdx) {
             return [PSCustomObject]@{
                 Ok      = $false
-                Message = "Wrapper nach Stopp sofort wieder gestartet - Dienst laeuft wieder."
+                Message = "Wrapper nach Start wieder gestoppt - Dienst ist nicht mehr aktiv."
                 LogTail = $lines
             }
         }
 
-        if ($lastStopIdx -ge 0) {
-            $m = $tsRx.Match($lines[$lastStopIdx])
+        if ($lastReadyIdx -ge 0) {
+            $m = $tsRx.Match($lines[$lastReadyIdx])
             if ($m.Success) {
                 $ts = [datetime]::new(
                     [int]$m.Groups[1].Value, [int]$m.Groups[2].Value, [int]$m.Groups[3].Value,
@@ -162,11 +164,12 @@ function Wait-WrapperStopped {
 
                 $deltaMin = [Math]::Abs(($ts - $Since).TotalMinutes)
 
-                # Timestamp im Toleranzfenster und letzter Log-Eintrag?
-                if ($deltaMin -le $ToleranceMinutes -and $lastStopIdx -eq ($lines.Count - 1)) {
+                # Timestamp im Toleranzfenster?
+                # (kein Check auf letzte Zeile – nach "system is ready" folgen weitere Log-Eintraege)
+                if ($deltaMin -le $ToleranceMinutes) {
                     return [PSCustomObject]@{
                         Ok      = $true
-                        Message = "Wrapper erfolgreich gestoppt um $($ts.ToString('HH:mm:ss'))."
+                        Message = "Integration Server gestartet um $($ts.ToString('HH:mm:ss'))."
                         LogTail = $lines
                     }
                 }
@@ -181,7 +184,7 @@ function Wait-WrapperStopped {
 
     return [PSCustomObject]@{
         Ok      = $false
-        Message = "Timeout: Wrapper-Stop nach $MaxSeconds Sekunden nicht bestaetigt."
+        Message = "Timeout: IS-Start nach $MaxSeconds Sekunden nicht bestaetigt."
         LogTail = $lines
     }
 }
@@ -219,7 +222,7 @@ function Send-ResultMail {
     $color  = if ($Success) { '#2e7d32' } else { '#c62828' }
     $icon   = if ($Success) { '&#10003;' } else { '&#10007;' }
 
-    $subject = "Lobster Wartung - $status - $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
+    $subject = "Lobster Start - $status - $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
 
     $enc = [System.Net.WebUtility]
 
@@ -229,7 +232,7 @@ function Send-ResultMail {
     $body = @"
 <html>
 <body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#333;">
-  <h2 style="color:$color;">$icon Lobster Wartung - $status</h2>
+  <h2 style="color:$color;">$icon Lobster Start - $status</h2>
   <table border="1" cellpadding="8" cellspacing="0"
          style="border-collapse:collapse;min-width:500px;">
     <tr style="background:#f0f0f0;">
@@ -237,12 +240,12 @@ function Send-ResultMail {
       <th style="text-align:left;">Ergebnis</th>
     </tr>
     <tr>
-      <td>DMZ-Host</td>
-      <td>$($enc::HtmlEncode($DmzMessage))</td>
-    </tr>
-    <tr>
       <td>Backend-Host</td>
       <td>$($enc::HtmlEncode($BackendMessage))</td>
+    </tr>
+    <tr>
+      <td>DMZ-Host</td>
+      <td>$($enc::HtmlEncode($DmzMessage))</td>
     </tr>
   </table>
 $backendLogHtml
@@ -262,7 +265,7 @@ $dmzLogHtml
 
 # ── Hauptlogik ────────────────────────────────────────────────────────────────
 
-if ([string]::IsNullOrEmpty($DmzScriptPath)) { $DmzScriptPath = "$PSScriptRoot\scripts\Stop-Dmz.ps1" }
+if ([string]::IsNullOrEmpty($DmzScriptPath)) { $DmzScriptPath = "$PSScriptRoot\scripts\Start-Dmz.ps1" }
 
 $scriptStart       = Get-Date
 $orchestratorMode  = -not [string]::IsNullOrWhiteSpace($DmzHost)
@@ -270,12 +273,12 @@ $orchestratorMode  = -not [string]::IsNullOrWhiteSpace($DmzHost)
 # ── DMZ-Modus / Standalone ────────────────────────────────────────────────────
 if (-not $orchestratorMode) {
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Dienst stoppen: $ServiceName"
-    $stopResult = Stop-LobsterServiceLocally -Name $ServiceName
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($stopResult.Message)"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Dienst starten: $ServiceName"
+    $startResult = Start-LobsterServiceLocally -Name $ServiceName
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($startResult.Message)"
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf Wrapper-Stop (max. $MaxWaitSeconds s) ..."
-    $checkResult = Wait-WrapperStopped `
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
+    $checkResult = Wait-WrapperStarted `
         -LogPath          $WrapperLogPath `
         -MaxSeconds       $MaxWaitSeconds `
         -PollSeconds      $PollIntervalSeconds `
@@ -310,7 +313,42 @@ if (-not $orchestratorMode) {
 # ── Orchestrator-Modus (Backend-Host) ────────────────────────────────────────
 
 Write-Host ""
-Write-Host "=== [1/3] DMZ-Host herunterfahren: $DmzHost ==="
+Write-Host "=== [1/3] Backend-Dienst starten (lokal) ==="
+
+$startResult   = Start-LobsterServiceLocally -Name $ServiceName
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($startResult.Message)"
+
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf IS-Start (max. $MaxWaitSeconds s) ..."
+$backendResult = Wait-WrapperStarted `
+    -LogPath          $WrapperLogPath `
+    -MaxSeconds       $MaxWaitSeconds `
+    -PollSeconds      $PollIntervalSeconds `
+    -Tail             $TailLines `
+    -Since            $scriptStart `
+    -ToleranceMinutes $TimeTolerance
+
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Backend: $($backendResult.Message)"
+
+if (-not $backendResult.Ok) {
+    Write-Warning "Backend-Start fehlgeschlagen – DMZ-Dienst wird NICHT gestartet."
+
+    if ($MailTo -and $SmtpServer) {
+        Write-Host "=== [2/3] Mail senden (Fehler) ==="
+        Send-ResultMail `
+            -To              $MailTo `
+            -From            $MailFrom `
+            -Smtp            $SmtpServer `
+            -Success         $false `
+            -BackendMessage  $backendResult.Message `
+            -DmzMessage      "Nicht ausgefuehrt (Backend fehlgeschlagen)." `
+            -BackendLogTail  $backendResult.LogTail
+    }
+
+    exit 1
+}
+
+Write-Host ""
+Write-Host "=== [2/3] DMZ-Host starten: $DmzHost ==="
 
 $dmzResult = $null
 try {
@@ -340,40 +378,7 @@ try {
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] DMZ: $($dmzResult.Message)"
 
-if (-not $dmzResult.Ok) {
-    Write-Warning "DMZ-Shutdown fehlgeschlagen – Backend-Dienst wird NICHT gestoppt."
-
-    if ($MailTo -and $SmtpServer) {
-        Write-Host "=== [2/3] Mail senden (Fehler) ==="
-        Send-ResultMail `
-            -To             $MailTo `
-            -From           $MailFrom `
-            -Smtp           $SmtpServer `
-            -Success        $false `
-            -DmzMessage     $dmzResult.Message `
-            -BackendMessage "Nicht ausgefuehrt (DMZ fehlgeschlagen)." `
-            -DmzLogTail     $(if ($dmzResult.LogTail) { $dmzResult.LogTail } else { @() })
-    }
-
-    exit 1
-}
-
-Write-Host ""
-Write-Host "=== [2/3] Backend-Dienst herunterfahren (lokal) ==="
-
-$stopResult   = Stop-LobsterServiceLocally -Name $ServiceName
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($stopResult.Message)"
-
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Warte auf Wrapper-Stop (max. $MaxWaitSeconds s) ..."
-$backendResult = Wait-WrapperStopped `
-    -LogPath          $WrapperLogPath `
-    -MaxSeconds       $MaxWaitSeconds `
-    -PollSeconds      $PollIntervalSeconds `
-    -Tail             $TailLines `
-    -Since            $scriptStart `
-    -ToleranceMinutes $TimeTolerance
-
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Backend: $($backendResult.Message)"
+$overallSuccess = $backendResult.Ok -and $dmzResult.Ok
 
 if ($MailTo -and $SmtpServer) {
     Write-Host ""
@@ -382,12 +387,12 @@ if ($MailTo -and $SmtpServer) {
         -To              $MailTo `
         -From            $MailFrom `
         -Smtp            $SmtpServer `
-        -Success         $backendResult.Ok `
-        -DmzMessage      $dmzResult.Message `
+        -Success         $overallSuccess `
         -BackendMessage  $backendResult.Message `
+        -DmzMessage      $dmzResult.Message `
         -BackendLogTail  $backendResult.LogTail `
         -DmzLogTail      $(if ($dmzResult.LogTail) { $dmzResult.LogTail } else { @() })
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Mail gesendet an: $MailTo"
 }
 
-exit $(if ($backendResult.Ok) { 0 } else { 1 })
+exit $(if ($overallSuccess) { 0 } else { 1 })

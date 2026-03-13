@@ -1,0 +1,43 @@
+<html>
+<body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#333;">
+  <h2 style="color:#2e7d32;">&#10003; Lobster Wartung - OK</h2>
+  <table border="1" cellpadding="8" cellspacing="0"
+         style="border-collapse:collapse;min-width:500px;">
+    <tr style="background:#f0f0f0;">
+      <th style="text-align:left;">Host</th>
+      <th style="text-align:left;">Ergebnis</th>
+    </tr>
+    <tr>
+      <td>DMZ-Host</td>
+      <td>Wrapper erfolgreich gestoppt um 22:01:15.</td>
+    </tr>
+    <tr>
+      <td>Backend-Host</td>
+      <td>Wrapper erfolgreich gestoppt um 22:01:43.</td>
+    </tr>
+  </table>
+
+  <h3 style="color:#555;margin-top:24px;">Letzte Log-Zeilen &ndash; Backend</h3>
+  <pre style="background:#f5f5f5;border:1px solid #ddd;padding:12px;font-size:12px;
+              font-family:Consolas,monospace;overflow-x:auto;max-width:800px;line-height:1.5;">STATUS | wrapper  | 2026/03/12 22:00:05 | Launching a JVM...
+STATUS | jvm 1    | 2026/03/12 22:00:05 | WrapperManager: Initializing...
+STATUS | jvm 1    | 2026/03/12 22:00:06 | LOBSTER INTEGRATION SERVER starting
+STATUS | jvm 1    | 2026/03/12 22:01:00 | Shutting down integration server
+STATUS | jvm 1    | 2026/03/12 22:01:12 | All connections closed
+STATUS | jvm 1    | 2026/03/12 22:01:40 | JVM exited normally.
+STATUS | wrapper  | 2026/03/12 22:01:43 | <-- Wrapper Stopped</pre>
+
+  <h3 style="color:#555;margin-top:24px;">Letzte Log-Zeilen &ndash; DMZ</h3>
+  <pre style="background:#f5f5f5;border:1px solid #ddd;padding:12px;font-size:12px;
+              font-family:Consolas,monospace;overflow-x:auto;max-width:800px;line-height:1.5;">STATUS | wrapper  | 2026/03/12 22:00:02 | Launching a JVM...
+STATUS | jvm 1    | 2026/03/12 22:00:03 | WrapperManager: Initializing...
+STATUS | jvm 1    | 2026/03/12 22:00:58 | Shutting down integration server
+STATUS | jvm 1    | 2026/03/12 22:01:10 | All connections closed
+STATUS | jvm 1    | 2026/03/12 22:01:12 | JVM exited normally.
+STATUS | wrapper  | 2026/03/12 22:01:15 | <-- Wrapper Stopped</pre>
+
+  <p style="color:#999;font-size:11px;margin-top:20px;">
+    12.03.2026 22:02:01 &ndash; BACKEND-SRV01
+  </p>
+</body>
+</html>

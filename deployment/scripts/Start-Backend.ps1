@@ -1,5 +1,21 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 # Start-Backend.ps1
-# TODO: Invoke-LobsterStartup.ps1 implementieren (analog zu Invoke-LobsterShutdown.ps1)
-[CmdletBinding()] param()
-throw 'Start-Backend.ps1 ist noch nicht implementiert. Invoke-LobsterStartup.ps1 fehlt.'
+# Nur den lokalen Backend-Dienst starten (Windows-Dienst). Kein DMZ.
+[CmdletBinding()] param(
+    [Parameter(Mandatory=$true)] [string] $ServiceName,
+    [Parameter(Mandatory=$true)] [string] $WrapperLogPath,
+    [string] $MailTo              = '',
+    [string] $MailFrom            = 'noreply@firma.local',
+    [string] $SmtpServer          = '',
+    [int]    $MaxWaitSeconds      = 300,
+    [int]    $PollIntervalSeconds = 15
+)
+& "$PSScriptRoot\..\Start-LobsterService.ps1" `
+    -ServiceName          $ServiceName `
+    -WrapperLogPath       $WrapperLogPath `
+    -MailTo               $MailTo `
+    -MailFrom             $MailFrom `
+    -SmtpServer           $SmtpServer `
+    -MaxWaitSeconds       $MaxWaitSeconds `
+    -PollIntervalSeconds  $PollIntervalSeconds
+exit $LASTEXITCODE
