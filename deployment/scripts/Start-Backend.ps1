@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Start-Backend.ps1
 # Nur den lokalen Backend-Dienst starten (Windows-Dienst). Kein DMZ.
 [CmdletBinding()] param(

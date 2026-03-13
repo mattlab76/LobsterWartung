@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Lobster-Dienst starten und Java-Wrapper-Start verifizieren.

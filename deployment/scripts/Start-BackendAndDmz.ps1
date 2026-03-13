@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Start-BackendAndDmz.ps1
 # Backend-Dienst und DMZ-Dienst starten.
 # Startreihenfolge: zuerst Backend, dann DMZ.
